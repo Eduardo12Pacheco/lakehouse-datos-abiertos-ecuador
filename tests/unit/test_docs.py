@@ -187,12 +187,12 @@ def test_architecture_names_the_patterns_and_data_model() -> None:
 def test_data_document_states_the_limitations() -> None:
     text = (DOCS / "DATA.md").read_text(encoding="utf-8").lower()
     for phrase in (
-        "fiscal pressure",
+        "presión fiscal",
         "2024",
         "2021q1",
         "scd2",
-        "province",
-        "limitation",
+        "provincial",
+        "limitaciones",
     ):
         assert phrase in text, f"limitation missing from DATA.md: {phrase}"
 
