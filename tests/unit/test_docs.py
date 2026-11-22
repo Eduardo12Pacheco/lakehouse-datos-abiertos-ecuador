@@ -28,7 +28,7 @@ REQUIRED_DOCS = (
     "CONFIGURATION.md",
 )
 
-REQUIRED_ADR_HEADINGS = ("Status", "Context", "Decision", "Consequences")
+REQUIRED_ADR_HEADINGS = ("Estado", "Contexto", "Decisión", "Consecuencias")
 
 # Links whose target starts with one of these schemes are not local files.
 _EXTERNAL_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")

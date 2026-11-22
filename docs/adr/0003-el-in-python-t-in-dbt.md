@@ -1,68 +1,70 @@
-# ADR 0003 — Extraction/loading in Python, transformation in dbt
+# ADR 0003 — Extracción y carga en Python, transformación en dbt
 
-## Status
+## Estado
 
-Accepted (2026-11-20).
+Aceptada (2026-11-20).
 
-## Context
+## Contexto
 
-The three upstream sources are structurally messy in different ways. SRI ships
-one 83–109 MB `|`-delimited file per year, UTF-8 with a BOM until 2022 and
-cp1252 from 2023, with comma decimals and no stable column set (`CANTON` is
-missing in older files). BCE ships a 6 MB `;`-delimited cp1252 file with comma
-thousands separators, 176 empty values and negative amounts. INEC ships a ZIP
-nested three levels deep whose CSVs are wide-pivoted across 120 month columns,
-mix `1,000000` and `0.224503124`, and carry title and footer rows.
+Las tres fuentes originales son estructuralmente desordenadas de maneras distintas. El SRI
+entrega un archivo `|`-delimitado de 83–109 MB por año, en UTF-8 con BOM hasta 2022 y en cp1252
+desde 2023, con decimales por coma y sin un conjunto estable de columnas (`CANTON` falta en los
+archivos antiguos). El BCE entrega un archivo cp1252 de 6 MB delimitado por `;`, con separadores
+de miles por coma, 176 valores vacíos y montos negativos. El INEC entrega un ZIP anidado en tres
+niveles cuyos CSV están pivotados en formato ancho con 120 columnas de meses, mezclan
+`1,000000` y `0.224503124`, y contienen filas de título y de pie.
 
-The alternative of teaching dbt to read each raw format directly would push
-encoding detection, nested-archive traversal and header discovery into SQL
-models, where they are hard to test in isolation and impossible to reuse for
-the published sample. Conversely, doing all cleaning in Python would duplicate
-the typing, key generation and data tests that dbt already provides and would
-make the transformation layer inaccessible to analysts.
+La alternativa de enseñar a dbt a leer directamente cada formato original llevaría la detección
+de codificación, el recorrido de archivos anidados y la búsqueda de encabezados a modelos SQL,
+donde son difíciles de probar de forma aislada e imposibles de reutilizar para la muestra
+publicada. Por el contrario, hacer toda la limpieza en Python duplicaría el tipado, la
+generación de claves y las pruebas de datos que dbt ya ofrece, y haría inaccesible la capa de
+transformación para los analistas.
 
-## Decision
+## Decisión
 
-- Python adapters own **structural extraction only (EL)**: decode with the D13
-  policy, validate the upstream header, traverse nested archives, find the
-  header row, unpivot wide month columns, and write canonical UTF-8 CSV with
-  LF endings. Every source value is preserved as raw text in that CSV.
-- dbt owns **all typing, normalization, key generation and modelling (T)**:
-  casting, decimal separators, month parsing, `normalize_key` parity,
-  surrogate keys, dimensions, facts, marts, data tests and unit tests.
-- The warehouse bulk-loads each canonical CSV through DuckDB `read_csv` with
-  `all_varchar=true`; parsers never import DuckDB, dbt or pandas. This keeps
-  the install light and avoids loading 100 MB files into Python objects.
-- Parsers implement the `SourceParser` port (`source_id`, `parse(path,
-  partition, output_dir=None) -> ParsedPartition`) and raise
-  `SourceSchemaError` (exit code 4) for missing or unknown columns, an
-  unreadable archive or an undecodable file. Unknown headers are rejected
-  instead of being silently ignored, so upstream drift fails loudly.
-- The canonical CSV contract is fixed per source and documented in the parser
-  modules; it is the only interface between EL and T.
+- Los adaptadores de Python son responsables únicamente de la **extracción estructural (EL)**:
+  decodificar con la política D13, validar el encabezado de origen, recorrer los archivos
+  anidados, encontrar la fila de encabezado, despivotar las columnas de meses anchas y escribir
+  un CSV canónico en UTF-8 con finales de línea LF. Cada valor de origen se conserva como texto
+  crudo en ese CSV.
+- dbt es responsable de **todo el tipado, la normalización, la generación de claves y el modelado
+  (T)**: conversiones de tipo, separadores decimales, parseo de meses, paridad con
+  `normalize_key`, claves sustitutas, dimensiones, hechos, marts, pruebas de datos y pruebas
+  unitarias.
+- El warehouse carga en bloque cada CSV canónico mediante `read_csv` de DuckDB con
+  `all_varchar=true`; los parsers nunca importan DuckDB, dbt ni pandas. Esto mantiene liviana la
+  instalación y evita cargar archivos de 100 MB como objetos de Python.
+- Los parsers implementan el puerto `SourceParser` (`source_id`, `parse(path, partition,
+  output_dir=None) -> ParsedPartition`) y generan `SourceSchemaError` (código de salida 4) ante
+  columnas faltantes o desconocidas, un archivo comprimido ilegible o un archivo no decodificable.
+  Los encabezados desconocidos se rechazan en lugar de ignorarse en silencio, de modo que un
+  cambio en la fuente falla de forma visible.
+- El contrato del CSV canónico se fija por fuente y se documenta en los módulos de los parsers;
+  es la única interfaz entre EL y T.
 
-## Consequences
+## Consecuencias
 
-- Every format quirk has a small fixture-based unit test without a warehouse
-  or dbt, and the same parser feeds both the bundled sample and `full` mode.
-- dbt remains the single transformation engine: models, tests, lineage and
-  documentation describe the whole business logic.
-- The canonical CSV adds one temporary file per partition (small compared with
-  the upstream bytes) but makes loading simple, inspectable and database
-  agnostic.
-- Raw text stays raw until dbt, so a value such as `-40,290` or an empty CNT
-  cell is preserved exactly and failures happen in a tested SQL layer.
-- Structural drift that changes only values (for example a new province) is not
-  a parser error; it is caught later by relationship or accepted-values tests.
-  Drift that changes columns fails early with exit code 4.
+- Cada particularidad de formato tiene una prueba unitaria pequeña basada en fixtures, sin
+  warehouse ni dbt, y el mismo parser alimenta tanto la muestra incluida como el modo `full`.
+- dbt sigue siendo el único motor de transformación: los modelos, las pruebas, el linaje y la
+  documentación describen toda la lógica de negocio.
+- El CSV canónico agrega un archivo temporal por partición (pequeño comparado con los bytes
+  originales), pero hace que la carga sea simple, inspeccionable e independiente de la base de
+  datos.
+- El texto crudo se mantiene crudo hasta llegar a dbt, así que un valor como `-40,290` o una celda
+  vacía de CNT se conserva exactamente y los fallos ocurren en una capa SQL probada.
+- Un cambio estructural que modifica solo valores (por ejemplo, una provincia nueva) no es un
+  error del parser; se detecta después mediante pruebas de relaciones o de valores aceptados. Un
+  cambio que modifica columnas falla temprano con código de salida 4.
 
-## Alternatives considered
+## Alternativas consideradas
 
-- **Read raw files directly from dbt**: encoding sniffing and nested ZIPs in
-  SQL are brittle, and dbt-duckdb would still need Python `read_csv` semantics.
-- **Full cleaning in Python (pandas/polars)**: contradicts D5, adds a heavy
-  dependency, duplicates dbt tests and weakens the "dbt is the transformation
-  engine" story.
-- **One parser per file format with Python `csv.DictReader` only**: does not
-  handle the INEC nested ZIPs or the SRI header drift, so the adapters still
-  need explicit header validation and archive handling.
+- **Leer los archivos originales directamente desde dbt**: la detección de codificación y los ZIP
+  anidados en SQL son frágiles, y dbt-duckdb seguiría necesitando la semántica de `read_csv` de
+  Python.
+- **Limpieza completa en Python (pandas/Polars)**: contradice D5, agrega una dependencia pesada,
+  duplica las pruebas de dbt y debilita el argumento de que "dbt es el motor de transformación".
+- **Un parser por formato de archivo usando solo `csv.DictReader` de Python**: no maneja los ZIP
+  anidados del INEC ni el cambio de encabezados del SRI, así que los adaptadores siguen necesitando
+  validación explícita de encabezados y manejo de archivos comprimidos.

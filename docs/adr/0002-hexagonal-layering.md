@@ -1,73 +1,73 @@
-# ADR 0002 — Hexagonal architecture enforced by import-linter and AST tests
+# ADR 0002 — Arquitectura hexagonal aplicada con import-linter y pruebas AST
 
-## Status
+## Estado
 
-Accepted (2026-11-19).
+Aceptada (2026-11-19).
 
-## Context
+## Contexto
 
-The project mixes several concerns that are easy to entangle: pure business
-rules (canonical text keys, batch identifiers, the pipeline DAG), use cases
-(acquire, load, transform, publish), and I/O adapters (HTTP, DuckDB, dbt, the
-report renderer, the CLI). The portfolio standard requires hexagonal
-architecture with the dependency direction enforced by a test, not by
-convention or code review alone.
+El proyecto mezcla varias preocupaciones que son fáciles de enredar: reglas de negocio puras
+(claves canónicas de texto, identificadores de lote, el DAG del pipeline), casos de uso
+(adquirir, cargar, transformar, publicar) y adaptadores de E/S (HTTP, DuckDB, dbt, el
+renderizador de reportes, la CLI). El estándar del portafolio exige una arquitectura
+hexagonal con la dirección de dependencias verificada por una prueba, no solo por convención o
+revisión de código.
 
-The domain must stay cheap to test: no network, no database, no dbt, no
-filesystem. The application layer may orchestrate I/O through ports and may use
-the standard library for files, but must not reach into adapters or third-party
-I/O libraries. Adapters must be mutually independent so a parser cannot import
-the warehouse and a warehouse cannot import the report renderer.
+El dominio debe seguir siendo barato de probar: sin red, sin base de datos, sin dbt y sin
+sistema de archivos. La capa de aplicación puede orquestar E/S mediante puertos y puede usar la
+biblioteca estándar para archivos, pero no debe acceder a los adaptadores ni a bibliotecas de
+E/S de terceros. Los adaptadores deben ser mutuamente independientes, de modo que un parser no
+pueda importar el warehouse y un warehouse no pueda importar el renderizador de reportes.
 
-## Decision
+## Decisión
 
-- Packages: `domain/`, `application/`, `adapters/`, `cli/`, plus the composition
-  root `container.py`, `config.py` and `logging_setup.py`.
-- Dependency direction: `cli -> container -> adapters -> application -> domain`.
-  Higher layers may import lower layers, never the other way around.
-- `domain/` uses the standard library and `ecuador_lakehouse.domain` only.
-  It must not import `config` or `logging_setup` either.
-- `application/` defines ports as `typing.Protocol` and talk to adapters only
-  through them. It may not import `adapters/`, `config`, `logging_setup`,
-  `duckdb`, `dbt`, `httpx`, `jinja2`, `typer` or `rich`.
-- Adapter subpackages (`sources`, `parsers`, `warehouse`, `transform`,
-  `artifact`, `report`, `docs`) are independent of each other.
-- Enforcement has two independent mechanisms:
-  1. import-linter contracts in `pyproject.toml` (`layers`, `forbidden`,
-     `independence`) run by `uv run lint-imports`, by `scripts/dev.py check`
-     and by CI;
-  2. an AST scan in `tests/architecture/test_layers.py` proving that every
-     import under `domain/` resolves to the standard library or to
-     `ecuador_lakehouse.domain`, and that `application/` does not import its
-     forbidden modules. The scan has self-tests that plant a violating file in
-     a temporary package, so the guard cannot silently stop working.
-- Patterns named in `docs/ARCHITECTURE.md`: Ports & Adapters, Strategy for
-  parsers/decoders/fetchers, Factory/Composition root in `container.py`,
-  Repository for the batch ledger, Unit of Work for partition loads,
-  Pipeline/DAG with Template-Method steps, frozen-dataclass value objects, and
-  custom generic tests as executable specifications.
+- Paquetes: `domain/`, `application/`, `adapters/`, `cli/`, además de la raíz de composición
+  `container.py`, `config.py` y `logging_setup.py`.
+- Dirección de dependencias: `cli -> container -> adapters -> application -> domain`. Las capas
+  superiores pueden importar capas inferiores, nunca al revés.
+- `domain/` usa solo la biblioteca estándar y `ecuador_lakehouse.domain`. Tampoco puede importar
+  `config` ni `logging_setup`.
+- `application/` define puertos como `typing.Protocol` y se comunica con los adaptadores solo a
+  través de ellos. No puede importar `adapters/`, `config`, `logging_setup`, `duckdb`, `dbt`,
+  `httpx`, `jinja2`, `typer` ni `rich`.
+- Los subpaquetes de adaptadores (`sources`, `parsers`, `warehouse`, `transform`, `artifact`,
+  `report`, `docs`) son independientes entre sí.
+- La aplicación de la regla tiene dos mecanismos independientes:
+  1. contratos de import-linter en `pyproject.toml` (`layers`, `forbidden`, `independence`),
+     ejecutados por `uv run lint-imports`, por `scripts/dev.py check` y por la CI;
+  2. un escaneo AST en `tests/architecture/test_layers.py` que demuestra que todo import bajo
+     `domain/` se resuelve a la biblioteca estándar o a `ecuador_lakehouse.domain`, y que
+     `application/` no importa sus módulos prohibidos. El escaneo tiene autopruebas que insertan
+     un archivo infractor en un paquete temporal, de modo que la guardia no pueda dejar de
+     funcionar en silencio.
+- Patrones nombrados en `docs/ARCHITECTURE.md`: Ports & Adapters; Strategy para parsers,
+  decodificadores y fetchers; Factory y raíz de composición en `container.py`; Repository para el
+  ledger de lotes; Unit of Work para las cargas de particiones; Pipeline/DAG con pasos de
+  Template Method; objetos de valor como dataclasses inmutables; y pruebas genéricas propias como
+  especificaciones ejecutables.
 
-## Consequences
+## Consecuencias
 
-- Domain tests run in milliseconds and need no fixtures beyond Python values.
-- Swapping HTTP for the bundled sample, or DuckDB for another warehouse, changes
-  only adapters and the composition root.
-- The two enforcement mechanisms overlap on purpose: import-linter understands
-  transitive and external imports; the AST scan is explicit, fast to diagnose
-  and impossible to satisfy through clever re-exports.
-- New adapter subpackages must be added to the independence contract before
-  they can import each other; that friction is intentional.
-- Some boilerplate is unavoidable (ports, wiring). It is concentrated in
-  `container.py` instead of being spread across use cases.
-- `config.py` and `logging_setup.py` sit outside the layers because they are
-  cross-cutting; the forbidden contracts keep them out of the inner two layers.
+- Las pruebas del dominio se ejecutan en milisegundos y no necesitan más fixtures que valores de
+  Python.
+- Cambiar HTTP por la muestra incluida, o DuckDB por otro warehouse, modifica solo los
+  adaptadores y la raíz de composición.
+- Los dos mecanismos de verificación se superponen a propósito: import-linter entiende los imports
+  transitivos y externos; el escaneo AST es explícito, rápido de diagnosticar y no puede
+  satisfacerse con re-exportaciones ingeniosas.
+- Los nuevos subpaquetes de adaptadores deben agregarse al contrato de independencia antes de
+  poder importarse entre sí; esa fricción es intencional.
+- Algo de código repetitivo es inevitable (puertos, cableado). Se concentra en `container.py` en
+  lugar de dispersarse entre los casos de uso.
+- `config.py` y `logging_setup.py` quedan fuera de las capas porque son transversales; los
+  contratos de prohibición los mantienen fuera de las dos capas internas.
 
-## Alternatives considered
+## Alternativas consideradas
 
-- **Plain package layout with code review**: unverifiable, and the standard
-  explicitly asks for an automated dependency test.
-- **A dependency-injection framework**: extra dependency and runtime magic for a
-  small CLI; an explicit composition root is easier to read and test.
-- **Single enforcement tool**: import-linter alone misses the "standard library
-  only" rule for non-external imports; the AST test alone would not model the
-  layer order or adapter independence.
+- **Layout de paquetes simple con revisión de código**: no verificable, y el estándar exige
+  explícitamente una prueba automatizada de dependencias.
+- **Un framework de inyección de dependencias**: dependencia extra y magia en tiempo de ejecución
+  para una CLI pequeña; una raíz de composición explícita es más fácil de leer y de probar.
+- **Una única herramienta de verificación**: import-linter por sí solo no cubre la regla de
+  "solo biblioteca estándar" para imports no externos; la prueba AST por sí sola no modela el
+  orden de capas ni la independencia de los adaptadores.

@@ -1,81 +1,76 @@
-# ADR 0006 — A custom DAG runner instead of Dagster/Airflow
+# ADR 0006 — Un runner de DAG propio en lugar de Dagster/Airflow
 
-## Status
+## Estado
 
-Accepted (2026-11-20).
+Aceptada (2026-11-20).
 
-## Context
+## Contexto
 
-The project needs a reproducible pipeline that runs `acquire -> load_raw ->
-transform -> quality -> docs -> report` from one CLI command, supports partial
-re-runs, retries idempotent acquisition, stops before downstream steps when a
-step fails, and records what happened in `meta.runs` (S13, D6). The pipeline has
-six steps, one process, one local DuckDB file and no scheduling requirements.
+El proyecto necesita un pipeline reproducible que ejecute `acquire -> load_raw -> transform ->
+quality -> docs -> report` desde un único comando de la CLI, admita re-ejecuciones parciales,
+reintente la adquisición idempotente, se detenga antes de los pasos posteriores cuando un paso
+falla y registre lo ocurrido en `meta.runs` (S13, D6). El pipeline tiene seis pasos, un proceso,
+un archivo DuckDB local y no tiene requisitos de programación.
 
-The obvious alternatives are:
+Las alternativas obvias son:
 
-1. **Dagster** — asset/materialization model, retries, run history and a web
-   UI. Version 1.13.31 pulls in grpcio, SQLAlchemy, Alembic and a daemon, and
-   its normal usage assumes a persistent instance and a web service.
-2. **Airflow** — mature scheduler, but a scheduler, metadata database, webserver
-   and executor are required even for a single local DAG.
-3. **A tiny pure-Python DAG** — a validated graph plus a loop that executes
-   callables, with the run ledger stored in the same DuckDB file.
+1. **Dagster**: modelo de assets/materializaciones, reintentos, historial de ejecuciones y una UI
+   web. La versión 1.13.31 trae grpcio, SQLAlchemy, Alembic y un daemon, y su uso normal supone una
+   instancia persistente y un servicio web.
+2. **Airflow**: planificador maduro, pero requiere un planificador, una base de datos de metadatos,
+   un webserver y un executor incluso para un único DAG local.
+3. **Un DAG mínimo en Python puro**: un grafo validado más un bucle que ejecuta callables, con el
+   ledger de ejecuciones guardado en el mismo archivo DuckDB.
 
-The standards require a local-first L1 install (`uv tool install`, no Docker, no
-server) and the plan explicitly makes the orchestrator a non-goal for external
-services (Context: "no orchestrator service — see ADR 0006").
+Los estándares exigen una instalación L1 local-first (`uv tool install`, sin Docker ni servidor), y
+el plan declara explícitamente que el orquestador es un no-objetivo para servicios externos
+(Contexto: "sin servicio orquestador — ver ADR 0006").
 
-## Decision
+## Decisión
 
-- **Keep the orchestrator custom and small.** `domain.dag.Dag` validates
-  duplicate steps, unknown dependencies and cycles at construction time and
-  returns a deterministic topological order (ties alphabetical).
-  `application.pipeline.PipelineRunner` executes registered callables, supports
-  `--select` (step plus transitive upstream), `--only` (one step) and
-  `--from-step` (step plus downstream), stops at the first failure and records
-  one `meta.runs` row per invocation with per-step status, duration, attempts,
-  detail and numeric metrics as compact JSON.
-- **Retries are opt-in and idempotency is asserted.** Only steps declared
-  idempotent may receive a `RetryPolicy`; the runner rejects a policy for any
-  other step at construction time. Today only `acquire` is retried, because
-  re-fetching a verified file is safe, while a partially applied load or dbt
-  run is not blindly repeated.
-- **Steps are plain application callables wired by the composition root.** The
-  runner knows nothing about DuckDB, dbt or HTTP. `container.py` selects the
-  fetch strategy by mode, assembles the six steps and passes the warehouse as
-  the run-ledger repository. A Dagster wrapper would only need to call the same
-  callables.
-- **The run ledger lives in `meta.runs`.** One row per run (start/finish, status,
-  mode, steps JSON) is written at the end of the run, including failed runs, so
-  the state of the last build is inspectable with plain SQL and can be shown by
-  the report UI without external infrastructure.
-- **dbt gets exclusive access to the warehouse.** The transform, quality and
-  docs steps close the application connection before invoking dbt and reopen it
-  afterwards (D18). The report step then reads the ledger through the reopened
-  connection.
+- **Mantener el orquestador propio y pequeño.** `domain.dag.Dag` valida pasos duplicados,
+  dependencias desconocidas y ciclos en el momento de la construcción, y devuelve un orden
+  topológico determinista (empates en orden alfabético). `application.pipeline.PipelineRunner`
+  ejecuta callables registrados, admite `--select` (el paso más sus dependencias transitivas),
+  `--only` (un paso) y `--from-step` (el paso más los posteriores), se detiene en el primer fallo y
+  registra una fila en `meta.runs` por invocación, con estado por paso, duración, intentos, detalle
+  y métricas numéricas como JSON compacto.
+- **Los reintentos son opcionales y la idempotencia se verifica.** Solo los pasos declarados
+  idempotentes pueden recibir una `RetryPolicy`; el runner rechaza una política para cualquier otro
+  paso en el momento de la construcción. Hoy solo se reintenta `acquire`, porque volver a descargar
+  un archivo verificado es seguro, mientras que una carga o una ejecución de dbt aplicadas
+  parcialmente no se repiten a ciegas.
+- **Los pasos son callables planos de la aplicación, cableados por la raíz de composición.** El
+  runner no sabe nada de DuckDB, dbt ni HTTP. `container.py` selecciona la estrategia de descarga
+  según el modo, arma los seis pasos y pasa el warehouse como repositorio del ledger de ejecuciones.
+  Un wrapper de Dagster solo tendría que invocar los mismos callables.
+- **El ledger de ejecuciones vive en `meta.runs`.** Una fila por ejecución (inicio/fin, estado, modo,
+  JSON de pasos) se escribe al final de la ejecución, incluidas las fallidas, de modo que el estado
+  del último build se puede inspeccionar con SQL simple y mostrarse en la UI del reporte sin
+  infraestructura externa.
+- **dbt obtiene acceso exclusivo al warehouse.** Los pasos de transform, quality y docs cierran la
+  conexión de la aplicación antes de invocar dbt y la reabren después (D18). El paso de reporte
+  lee luego el ledger a través de la conexión reabierta.
 
-## Consequences
+## Consecuencias
 
-- Positive: zero extra services, no daemon, no metadata database, install stays
-  ~350 MB dominated by dbt; the pipeline runs offline and on Windows.
-- Positive: ordering, selection and retry behaviour are unit-tested against the
-  real `Dag`, and `meta.runs` is asserted by integration tests.
-- Positive: replacing the runner with Dagster later means implementing the same
-  six callables as assets; no domain or adapter logic is trapped in the runner.
-- Negative: no UI, scheduler, alerting or distributed execution. The project is
-  a local batch lakehouse by design; scheduling (cron, GitHub Actions) is out of
-  scope.
-- Negative: the runner is our code to maintain. Its surface is intentionally
-  small (one module plus the pure DAG) and covered by unit tests and property
-  tests for graph ordering/cycles.
+- Positivo: cero servicios adicionales, sin daemon, sin base de datos de metadatos; la instalación
+  sigue en unos 350 MB, dominados por dbt; el pipeline funciona sin conexión y en Windows.
+- Positivo: el orden, la selección y el comportamiento de reintentos tienen pruebas unitarias sobre
+  el `Dag` real, y `meta.runs` lo verifican pruebas de integración.
+- Positivo: reemplazar el runner por Dagster en el futuro significa implementar los mismos seis
+  callables como assets; ninguna lógica de dominio o de adaptadores queda atrapada en el runner.
+- Negativo: no hay UI, planificador, alertas ni ejecución distribuida. El proyecto es, por diseño, un
+  lakehouse batch local; la programación (cron, GitHub Actions) queda fuera de alcance.
+- Negativo: el runner es código nuestro que debemos mantener. Su superficie es intencionalmente
+  pequeña (un módulo más el DAG puro) y está cubierta por pruebas unitarias y pruebas de propiedades
+  sobre el orden y los ciclos del grafo.
 
-## Alternatives considered
+## Alternativas consideradas
 
-- **Dagster**: asset model, retries and a UI, but it pulls grpcio, SQLAlchemy,
-  Alembic and a daemon and expects a persistent instance; rejected for an L1
-  single-process CLI.
-- **Airflow**: mature scheduler, but it needs a scheduler, metadata database,
-  webserver and executor for one local DAG; rejected as disproportionate.
-- **A cron job or shell script**: no typed graph, no cycle detection, no run
-  ledger and no partial selection; rejected because those are explicit specs.
+- **Dagster**: modelo de assets, reintentos y una UI, pero arrastra grpcio, SQLAlchemy, Alembic y un
+  daemon, y espera una instancia persistente; rechazado para una CLI L1 de un solo proceso.
+- **Airflow**: planificador maduro, pero necesita planificador, base de datos de metadatos,
+  webserver y executor para un único DAG local; rechazado por desproporcionado.
+- **Un cron job o un script de shell**: sin grafo tipado, sin detección de ciclos, sin ledger de
+  ejecuciones y sin selección parcial; rechazado porque esas son especificaciones explícitas.

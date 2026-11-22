@@ -1,90 +1,86 @@
-# ADR 0004 — Bundled sample strategy and licensing
+# ADR 0004 — Estrategia de muestra incluida y licencias
 
-## Status
+## Estado
 
-Accepted (2026-11-20).
+Aceptada (2026-11-20).
 
-## Context
+## Contexto
 
-`lakehouse build` must work fully offline with zero keys (S2) while the real
-inputs total roughly 960 MB across twelve files. Shipping those bytes in the
-wheel would be unacceptable, and shipping arbitrary synthetic rows would break
-the promise that the sample is real data whose totals reconcile with published
-figures. The published artifact must also be redistributable (S14), which rules
-out datasets whose CKAN license is non-commercial.
+`lakehouse build` debe funcionar por completo sin conexión y sin claves (S2), mientras que las
+entradas reales suman unos 960 MB en doce archivos. Incluir esos bytes en el wheel sería
+inaceptable, y incluir filas sintéticas arbitrarias rompería la promesa de que la muestra son
+datos reales cuyos totales concilian con cifras publicadas. El artefacto publicado también debe
+ser redistribuible (S14), lo que descarta los conjuntos de datos cuya licencia en CKAN es no
+comercial.
 
-The three sources behave differently. SRI ships ten 83–109 MB yearly CSVs at
-province/canton grain; only an aggregated slice is useful for a lightweight
-example. BCE ships one frozen 6 MB file that is already small. INEC ships a
-nested archive whose twelve index CSVs are the payload the parser needs.
+Las tres fuentes se comportan de forma distinta. El SRI entrega diez CSV anuales de 83–109 MB
+con grano provincial y cantonal; solo una porción agregada es útil para un ejemplo liviano. El
+BCE entrega un único archivo congelado de 6 MB que ya es pequeño. El INEC entrega un archivo
+anidado cuyos doce CSV de índices son la carga útil que necesita el parser.
 
-## Decision
+## Decisión
 
-- **Only redistributable sources are bundled.** SRI (`cc-by`), BCE (`cc-by`)
-  and INEC (CC BY 4.0 on the publisher page) are included. BCE datasets whose
-  CKAN license is `cc-nc` (monthly information, 2024 national accounts,
-  interest rates) are excluded from the pipeline and the artifact, even though
-  they are technically reachable. The published data product therefore remains
-  redistributable under CC BY.
-- **The SRI sample is a deterministic reduction, not synthetic data.** Rows are
-  grouped by `ANIO, MES, GRUPO_IMPUESTO, SUBGRUPO_IMPUESTO, IMPUESTO,
-  TIPO_CONTRIBUYENTE, PROVINCIA`, `VALOR_RECAUDADO` is summed with
-  `decimal.Decimal` and rounded half-up to cents, and canton, `GRAN_CONTRIBUYENTE`
-  and `CODIGO_OPERA_FAMILIA` are dropped. This matches D10: about 22,700–25,900
-  rows and roughly 0.2 MB per year, while every total is preserved within one
-  cent per group.
-- **BCE is bundled verbatim.** The upstream bytes are placed unchanged inside a
-  gzip container, so the decompressed SHA-256 equals the pinned upstream
-  checksum and tests can prove it.
-- **INEC is repacked, not modified.** The twelve index CSVs are copied
-  verbatim out of the nested archives into one flat ZIP with fixed timestamp
-  `1980-01-01`, deterministic ordering and deflate compression. The parser
-  handles the flat archive through the same member matcher.
-- **Byte reproducibility is a requirement.** Gzip writers use `mtime=0` and no
-  filename; ZIP entries use a fixed timestamp. The manifest contains no build
-  timestamp, only the pinned inventory `checked_at`, the builder version, and
-  per-file size/SHA-256/row count/derived-from SHA-256. Two runs therefore
-  produce identical bytes.
-- **Control totals are generated from the full upstream files**, one row per SRI
-  year in `dbt_project/seeds/control_totals.csv`; the current year is marked
-  `is_frozen=false`. They are the reconciliation anchor for the dbt singular
-  tests and are not hand-edited.
-- **The sample is verified like any other source.** `SAMPLE_MANIFEST.json` is
-  the contract: `SampleSourceFetcher` verifies size and SHA-256 before copying a
-  file into the cache, and `lakehouse doctor` re-verifies all twelve files.
-- **Large upstream files stay out of git.** Downloads go to
-  `$LAKEHOUSE_HOME/cache` (or `--cache-dir` for the maintainer command) outside
-  the repository; a second run reuses them. Only the generated sample
-  (about 4.1 MB) is committed.
+- **Solo se incluyen fuentes redistribuibles.** Se incluyen SRI (`cc-by`), BCE (`cc-by`) e INEC
+  (CC BY 4.0 en la página del editor). Los conjuntos de datos del BCE cuya licencia en CKAN es
+  `cc-nc` (información mensual, cuentas nacionales 2024, tasas de interés) se excluyen del
+  pipeline y del artefacto, aunque sean técnicamente accesibles. El producto de datos publicado
+  sigue, por lo tanto, siendo redistribuible bajo CC BY.
+- **La muestra del SRI es una reducción determinista, no datos sintéticos.** Las filas se agrupan
+  por `ANIO, MES, GRUPO_IMPUESTO, SUBGRUPO_IMPUESTO, IMPUESTO, TIPO_CONTRIBUYENTE, PROVINCIA`,
+  `VALOR_RECAUDADO` se suma con `decimal.Decimal` y se redondea half-up a centavos, y se eliminan
+  el cantón, `GRAN_CONTRIBUYENTE` y `CODIGO_OPERA_FAMILIA`. Esto cumple D10: unas 22,700–25,900
+  filas y alrededor de 0.2 MB por año, mientras cada total se conserva dentro de un centavo por
+  grupo.
+- **El BCE se incluye sin modificaciones.** Los bytes originales se colocan sin cambios dentro de
+  un contenedor gzip, de modo que el SHA-256 descomprimido es igual al checksum fijado del origen
+  y las pruebas pueden demostrarlo.
+- **El INEC se reempaqueta, no se modifica.** Los doce CSV de índices se copian sin cambios desde
+  los archivos anidados a un ZIP plano con marca de tiempo fija `1980-01-01`, orden determinista y
+  compresión deflate. El parser maneja el archivo plano mediante el mismo comparador de miembros.
+- **La reproducibilidad de bytes es un requisito.** Los escritores de gzip usan `mtime=0` y no
+  guardan nombre de archivo; las entradas del ZIP usan una marca de tiempo fija. El manifest no
+  contiene marca de tiempo de build, solo el inventario fijado `checked_at`, la versión del
+  constructor y, por archivo, el tamaño, el SHA-256, el número de filas y el SHA-256 de origen. Por
+  lo tanto, dos ejecuciones producen bytes idénticos.
+- **Las cifras de control se generan a partir de los archivos completos del origen**, una fila por
+  año del SRI en `dbt_project/seeds/control_totals.csv`; el año en curso se marca con
+  `is_frozen=false`. Son el ancla de conciliación para las pruebas singulares de dbt y no se editan
+  a mano.
+- **La muestra se verifica como cualquier otra fuente.** `SAMPLE_MANIFEST.json` es el contrato:
+  `SampleSourceFetcher` verifica tamaño y SHA-256 antes de copiar un archivo a la caché, y
+  `lakehouse doctor` vuelve a verificar los doce archivos.
+- **Los archivos originales grandes quedan fuera de git.** Las descargas van a
+  `$LAKEHOUSE_HOME/cache` (o a `--cache-dir` para el comando de mantenimiento), fuera del
+  repositorio; una segunda ejecución los reutiliza. Solo se versiona la muestra generada (unos
+  4.1 MB).
 
-## Consequences
+## Consecuencias
 
-- `lakehouse build` never needs the network in the default `sample` mode, and
-  the artifact and report can be reproduced by anyone with the wheel.
-- The sample stays under the 8,000,000-byte budget while preserving real tax
-  totals, the real BCE series and the real CPI matrix.
-- Tests assert exact SRI row counts, the BCE decompressed checksum, the INEC
-  row count and control-total tolerances, so a silent change in the reduction
-  or in an upstream file is caught.
-- Generating the sample is a maintainer action (`lakehouse sample build`); it
-  downloads the pinned files once, needs outbound HTTPS and is not part of
-  `lakehouse build`.
-- The current SRI year is mutable by nature. The builder records the observed
-  SHA-256 in the manifest, and tests pin the bundled snapshot rather than the
-  live checksum (L4); changing the bundle is an explicit `chore(data)` commit.
-- Province grain loses canton detail in `sample` mode. `full` mode keeps
-  cantons, and the bundled sample is documented as province grain.
+- `lakehouse build` nunca necesita red en el modo `sample` por defecto, y cualquiera con el wheel
+  puede reproducir el artefacto y el reporte.
+- La muestra se mantiene dentro del presupuesto de 8,000,000 bytes y conserva los totales reales
+  de recaudación, la serie real del BCE y la matriz real del IPC.
+- Las pruebas afirman conteos exactos de filas del SRI, el checksum descomprimido del BCE, el
+  conteo de filas del INEC y las tolerancias de los totales de control, de modo que un cambio
+  silencioso en la reducción o en un archivo de origen se detecta.
+- Generar la muestra es una acción de mantenimiento (`lakehouse sample build`); descarga los
+  archivos fijados una vez, necesita HTTPS saliente y no forma parte de `lakehouse build`.
+- El año en curso del SRI es mutable por naturaleza. El constructor registra el SHA-256 observado
+  en el manifest, y las pruebas fijan la instantánea incluida en lugar del checksum en vivo (L4);
+  cambiar el paquete es un commit `chore(data)` explícito.
+- El grano provincial pierde el detalle de cantón en el modo `sample`. El modo `full` conserva los
+  cantones, y la muestra incluida está documentada como de grano provincial.
 
-## Alternatives considered
+## Alternativas consideradas
 
-- **Synthetic fixtures**: fast to generate but dishonest for a data-engineering
-  portfolio; totals would not reconcile to published figures.
-- **Bundle the full 960 MB**: contradicts the wheel size and offline-first
-  installation story; the artifact would be unusable.
-- **Aggregate to national grain only**: smaller, but it would drop the province
-  dimension that the report and the geography relationships test need.
-- **Keep the nested INEC archive**: preserves upstream shape but requires the
-  parser to redo archive discovery on every build; the flat ZIP is simpler and
-  still contains the same verbatim CSV bytes.
-- **Include `cc-nc` BCE datasets**: rejected for licensing hygiene (D9), even
-  though the extra series would make the macro mart richer.
+- **Fixtures sintéticos**: rápidos de generar, pero deshonestos para un portafolio de ingeniería
+  de datos; los totales no conciliarían con cifras publicadas.
+- **Incluir los 960 MB completos**: contradice el tamaño del wheel y la historia de instalación
+  offline primero; el artefacto sería inutilizable.
+- **Agregar solo a grano nacional**: más pequeño, pero eliminaría la dimensión provincial que
+  necesitan el reporte y la prueba de relaciones geográficas.
+- **Conservar el archivo anidado del INEC**: preserva la forma original, pero obliga al parser a
+  repetir el descubrimiento del archivo en cada build; el ZIP plano es más simple y contiene los
+  mismos bytes CSV originales.
+- **Incluir los conjuntos `cc-nc` del BCE**: rechazado por higiene de licencias (D9), aunque las
+  series adicionales habrían enriquecido el mart macro.
