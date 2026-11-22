@@ -58,8 +58,10 @@ def _rows(connection: duckdb.DuckDBPyConnection, sql: str) -> tuple[dict[str, ob
 
 
 def _classify(path: str) -> str:
+    # dbt writes OS-native separators in ``original_file_path``; normalize them.
+    normalized = path.replace("\\", "/")
     for prefix, layer in _LAYER_BY_PREFIX:
-        if path.startswith(prefix):
+        if normalized.startswith(prefix):
             return layer
     return "other"
 
