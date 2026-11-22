@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
+from tests.unit.cli_support import plain
 from typer.testing import CliRunner
 
 from ecuador_lakehouse.application.ports import FetchResult
@@ -17,11 +17,6 @@ from ecuador_lakehouse.domain.sources import SourceFile, SourceId
 
 runner = CliRunner()
 SHA = "b" * 64
-_ANSI = re.compile(r"\x1b\[[0-9;]*m")
-
-
-def plain(text: str) -> str:
-    return _ANSI.sub("", text)
 
 
 def make_source_file(partition: str = "2025") -> SourceFile:

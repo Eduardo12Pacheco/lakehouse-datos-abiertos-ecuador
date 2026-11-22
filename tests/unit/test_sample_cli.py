@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import re
 from decimal import Decimal
 
 import pytest
+from tests.unit.cli_support import plain
 from typer.testing import CliRunner
 
 from ecuador_lakehouse.cli.app import app
@@ -14,11 +14,6 @@ from ecuador_lakehouse.domain.sample import ControlTotal, SampleBuildReport, Sam
 from ecuador_lakehouse.domain.sources import SourceId
 
 runner = CliRunner()
-_ANSI = re.compile(r"\x1b\[[0-9;]*m")
-
-
-def plain(text: str) -> str:
-    return _ANSI.sub("", text)
 
 
 def test_root_help_lists_the_sample_and_doctor_commands() -> None:

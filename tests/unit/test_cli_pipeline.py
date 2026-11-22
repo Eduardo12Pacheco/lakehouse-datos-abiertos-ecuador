@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
+from tests.unit.cli_support import plain
 from typer.testing import CliRunner
 
 from ecuador_lakehouse.application.pipeline import RunReport
@@ -228,9 +229,9 @@ def test_help_lists_build_and_test_options() -> None:
 
     assert build_help.exit_code == 0
     for option in ("--select", "--only", "--from-step"):
-        assert option in build_help.output
+        assert option in plain(build_help.output)
     assert test_help.exit_code == 0
-    assert "quality" in test_help.output.lower()
+    assert "quality" in plain(test_help.output).lower()
 
 
 def test_run_table_renders_steps_and_status() -> None:

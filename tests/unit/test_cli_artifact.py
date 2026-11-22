@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from tests.unit.cli_support import plain
 from typer.testing import CliRunner
 
 from ecuador_lakehouse.cli.app import app
@@ -30,9 +31,9 @@ def test_publish_and_verify_help_describe_their_arguments() -> None:
     verify = runner.invoke(app, ["verify", "--help"])
 
     assert publish.exit_code == 0
-    assert "--out" in publish.output
+    assert "--out" in plain(publish.output)
     assert verify.exit_code == 0
-    assert "ARTIFACT_DIR" in verify.output.upper()
+    assert "ARTIFACT_DIR" in plain(verify.output).upper()
 
 
 def test_verify_without_an_artifact_exits_eight(tmp_path) -> None:
