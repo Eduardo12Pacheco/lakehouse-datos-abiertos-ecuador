@@ -1,84 +1,83 @@
-# Published artifact
+# Artefacto publicado
 
-`lakehouse publish --out DIR` turns the marts into a versioned, self-describing
-data product that another project can consume without installing this package.
-`lakehouse build --publish --out DIR` runs the full pipeline and publishes after
-the quality gate. `lakehouse verify DIR` re-checks the result and exits 8 on any
-inconsistency.
+`lakehouse publish --out DIR` convierte los marts en un producto de datos versionado y
+autodescriptivo que otro proyecto puede consumir sin instalar este paquete. `lakehouse build
+--publish --out DIR` ejecuta el pipeline completo y publica después de la compuerta de
+calidad. `lakehouse verify DIR` vuelve a revisar el resultado y termina con código 8 ante
+cualquier inconsistencia.
 
-The artifact is a directory, not a service and not a database server: it can be
-zipped, attached to a GitHub Release, copied to a USB drive or read directly
-from a sibling project.
+El artefacto es un directorio, no un servicio ni un servidor de base de datos: puede
+comprimirse en un zip, adjuntarse a un GitHub Release, copiarse a una memoria USB o leerse
+directamente desde un proyecto hermano.
 
-## Layout
+## Estructura
 
 ```text
 DIR/ecuador-lakehouse-1.0.0/
-├── ecuador_lakehouse.duckdb   # schemas marts + meta only
+├── ecuador_lakehouse.duckdb   # solo los esquemas marts + meta
 ├── parquet/
 │   ├── dim_date.parquet
-│   ├── ...                    # one ZSTD Parquet file per published table
+│   ├── ...                    # un archivo Parquet ZSTD por tabla publicada
 │   └── mart_tax_lifecycle.parquet
-├── manifest.json              # deterministic metadata, no wall-clock fields
-├── SHA256SUMS                 # one SHA-256 per payload file
-└── ATTRIBUTION.md             # source URLs, licenses and modifications
+├── manifest.json              # metadatos deterministas, sin campos de reloj
+├── SHA256SUMS                 # un SHA-256 por archivo de contenido
+└── ATTRIBUTION.md             # URLs de origen, licencias y modificaciones
 ```
 
-The directory name is `<artifact_name>-<artifact_version>`. The current
-artifact version is `1.0.0` and equals the contract version; it is independent
-of the Python package version. The database exposes only `marts` (the public
-tables) and a small `meta.build_info` table (build time, artifact version,
-generator, data mode). Build time never participates in a fingerprint.
+El nombre del directorio es `<artifact_name>-<artifact_version>`. La versión actual del
+artefacto es `1.0.0` e iguala la versión del contrato; es independiente de la versión del
+paquete de Python. La base de datos expone solo `marts` (las tablas públicas) y una pequeña
+tabla `meta.build_info` (hora de build, versión del artefacto, generador, modo de datos). La
+hora de build nunca participa en una huella digital.
 
-The published tables are the 7 conformed dimensions, 3 facts and 4 analytic
-marts listed in [ARCHITECTURE.md](ARCHITECTURE.md). The typed schema is
-committed in `src/ecuador_lakehouse/artifact_contract.json` and explained in
+Las tablas publicadas son las 7 dimensiones conformadas, los 3 hechos y los 4 marts
+analíticos listados en [ARCHITECTURE.md](ARCHITECTURE.md). El esquema tipado está versionado
+en `src/ecuador_lakehouse/artifact_contract.json` y se explica en
 [CONTRACT.md](CONTRACT.md).
 
 ## Manifest
 
-`manifest.json` is validated by
+`manifest.json` se valida con
 [`docs/schemas/manifest.schema.json`](schemas/manifest.schema.json)
-(JSON Schema draft 2020-12, `schema_version: "1.0"`). It contains no build
-dates.
+(JSON Schema draft 2020-12, `schema_version: "1.0"`). No contiene fechas de build.
 
-| Field | Meaning |
+| Campo | Significado |
 | --- | --- |
-| `schema_version` | Manifest schema version, currently `"1.0"` |
+| `schema_version` | Versión del esquema del manifest; actualmente `"1.0"` |
 | `artifact_name` | `ecuador-lakehouse` |
-| `artifact_version` | Semver data-product version; equals the contract version |
-| `generator` | `ecuador-open-data-lakehouse/<package version>` |
-| `duckdb_version` | DuckDB version that wrote the artifact |
-| `dbt_core_version` | dbt-core version that built the marts |
-| `data_mode` | `sample` or `full` |
-| `built_from` | Per-source `{source_id, url, license_id, files:[{name, sha256}]}` |
-| `tables` | One entry per published table |
+| `artifact_version` | Versión semver del producto de datos; iguala la versión del contrato |
+| `generator` | `ecuador-open-data-lakehouse/<versión del paquete>` |
+| `duckdb_version` | Versión de DuckDB que escribió el artefacto |
+| `dbt_core_version` | Versión de dbt-core que construyó los marts |
+| `data_mode` | `sample` o `full` |
+| `built_from` | Por fuente `{source_id, url, license_id, files:[{name, sha256}]}` |
+| `tables` | Una entrada por tabla publicada |
 | `quality` | `{tests_total, tests_passed, unit_tests_total, unit_tests_passed}` |
-| `attribution` | The full attribution text, also written to `ATTRIBUTION.md` |
+| `attribution` | El texto completo de atribución, también escrito en `ATTRIBUTION.md` |
 
-Each `tables` entry has:
+Cada entrada de `tables` tiene:
 
-| Field | Meaning |
+| Campo | Significado |
 | --- | --- |
-| `name`, `schema` | Table name and schema (`marts`) |
-| `kind` | `dim`, `fct` or `mart` |
-| `grain` | Human-readable grain, mirrored from the contract |
-| `row_count` | Exact row count at publish time |
-| `columns` | Ordered `{name, type, description}` triples |
-| `content_sha256` | Logical fingerprint of the table |
-| `parquet_file` | Relative path such as `parquet/dim_date.parquet` |
+| `name`, `schema` | Nombre de la tabla y esquema (`marts`) |
+| `kind` | `dim`, `fct` o `mart` |
+| `grain` | Grano legible por personas, reflejado desde el contrato |
+| `row_count` | Número exacto de filas al momento de publicar |
+| `columns` | Ternas ordenadas `{name, type, description}` |
+| `content_sha256` | Huella digital lógica de la tabla |
+| `parquet_file` | Ruta relativa, por ejemplo `parquet/dim_date.parquet` |
 
-`content_sha256` is the SHA-256 of the bytes produced by
-`COPY (SELECT * FROM <table> ORDER BY ALL) TO <file> (FORMAT CSV)`. It
-normalizes row order and ignores DuckDB/Parquet file metadata, so two builds
-from the same inputs and data mode agree even though the database and Parquet
-bytes do not. That is the determinism guarantee: two fresh sample builds
-produce equal `content_sha256` values for all 14 tables.
+`content_sha256` es el SHA-256 de los bytes producidos por
+`COPY (SELECT * FROM <table> ORDER BY ALL) TO <file> (FORMAT CSV)`. Normaliza el orden de
+las filas e ignora los metadatos de archivo de DuckDB y Parquet, de modo que dos builds con
+las mismas entradas y el mismo modo de datos coinciden, aunque los bytes de la base de datos
+y de Parquet no coincidan. Esa es la garantía de determinismo: dos builds limpios de la
+muestra producen valores `content_sha256` iguales para las 14 tablas.
 
-## Consuming with DuckDB
+## Consumo con DuckDB
 
-Open the database read-only. `ATTACH` is useful when the consumer already has a
-connection with its own tables:
+Abra la base de datos en modo de solo lectura. `ATTACH` es útil cuando el consumidor ya tiene
+una conexión con sus propias tablas:
 
 ```sql
 ATTACH 'DIR/ecuador-lakehouse-1.0.0/ecuador_lakehouse.duckdb'
@@ -92,7 +91,7 @@ ORDER BY total_usd DESC
 LIMIT 5;
 ```
 
-From Python, with only the `duckdb` dependency:
+Desde Python, con solo la dependencia `duckdb`:
 
 ```python
 import duckdb
@@ -110,67 +109,68 @@ with duckdb.connect(str(database), read_only=True) as con:
     ).fetchall()
 ```
 
-Use `ATTACH ... (READ_ONLY)` instead when you already have a connection with
-your own tables, as in the SQL example above.
+Use `ATTACH ... (READ_ONLY)` en su lugar cuando ya tenga una conexión con sus propias tablas,
+como en el ejemplo SQL anterior.
 
-The complete runnable example is
-[`examples/consume_artifact.py`](../examples/consume_artifact.py). It imports
-only `duckdb` and the standard library, prints the top five tax groups of the
-latest year and the latest complete SRI/GDP ratio, and is exercised by a test
-that asserts it does not import `ecuador_lakehouse`.
+El ejemplo ejecutable completo está en
+[`examples/consume_artifact.py`](../examples/consume_artifact.py). Solo importa `duckdb` y la
+biblioteca estándar, imprime los cinco principales grupos de impuestos del último año y la
+última razón SRI/PIB completa, y una prueba verifica que no importa `ecuador_lakehouse`.
 
-Parquet files can be read without the DuckDB database:
+Los archivos Parquet se pueden leer sin la base de datos DuckDB:
 
 ```sql
 SELECT * FROM read_parquet('DIR/ecuador-lakehouse-1.0.0/parquet/mart_inflation_monthly.parquet');
 ```
 
-## Verifying an artifact
+## Verificar un artefacto
 
 ```bash
 lakehouse verify DIR/ecuador-lakehouse-1.0.0
 ```
 
-Verification is intentionally redundant. It checks:
+La verificación es deliberadamente redundante. Comprueba:
 
-1. `manifest.json` parses and is internally consistent.
-2. Every expected file exists: the database, `manifest.json`,
-   `ATTRIBUTION.md` and one Parquet file per table; no unlisted file is present.
-3. `SHA256SUMS` covers every payload file and every byte matches its recorded
-   SHA-256.
-4. Each Parquet row count and column type list matches the manifest.
-5. The DuckDB file has a `marts` schema and no `raw`, `staging` or
-   `intermediate` schema.
-6. The DuckDB table set, ordered columns and row counts match the manifest.
-7. Each table's logical `content_sha256` matches the manifest.
+1. `manifest.json` se parsea y es internamente consistente.
+2. Existe cada archivo esperado: la base de datos, `manifest.json`, `ATTRIBUTION.md` y un
+   archivo Parquet por tabla; no hay archivos no listados.
+3. `SHA256SUMS` cubre cada archivo de contenido y cada byte coincide con su SHA-256
+   registrado.
+4. El número de filas de cada Parquet y la lista de tipos de columna coinciden con el
+   manifest.
+5. El archivo DuckDB tiene un esquema `marts` y ningún esquema `raw`, `staging` o
+   `intermediate`.
+6. El conjunto de tablas de DuckDB, las columnas ordenadas y el número de filas coinciden con
+   el manifest.
+7. El `content_sha256` lógico de cada tabla coincide con el manifest.
 
-A missing table, a flipped byte, a schema change or a manifest edit fails with
-`ArtifactVerificationError` and exit code 8. Verification needs only the
-artifact directory and DuckDB; it does not read the warehouse.
+Una tabla faltante, un byte alterado, un cambio de esquema o una edición del manifest fallan
+con `ArtifactVerificationError` y código de salida 8. La verificación solo necesita el
+directorio del artefacto y DuckDB; no lee el warehouse.
 
-## Version compatibility
+## Compatibilidad de versiones
 
-Two versions move independently:
+Dos versiones evolucionan de forma independiente:
 
-- **Package version** (`0.1.1`) describes the software: CLI, parsers, report
-  and dbt project.
-- **Artifact version** (`1.0.0`) describes the data product and equals the
-  contract version.
+- **Versión del paquete** (`0.1.1`) describe el software: CLI, parsers, reporte y el proyecto
+  dbt.
+- **Versión del artefacto** (`1.0.0`) describe el producto de datos e iguala la versión del
+  contrato.
 
-Consumers should pin the artifact version they tested and check
-`manifest.json.schema_version` before parsing the manifest. The semver meaning
-of `artifact_version` is defined in [CONTRACT.md](CONTRACT.md): a MAJOR bump
-means a table or column was removed or renamed, or a type changed; a MINOR bump
-adds something; a PATCH bump fixes data without changing the schema.
+Los consumidores deben fijar la versión del artefacto que probaron y revisar
+`manifest.json.schema_version` antes de parsear el manifest. El significado semver de
+`artifact_version` se define en [CONTRACT.md](CONTRACT.md): un incremento MAJOR significa que
+se eliminó o renombró una tabla o columna, o que cambió un tipo; un incremento MINOR agrega
+algo; un incremento PATCH corrige datos sin cambiar el esquema.
 
-The manifest also records `duckdb_version` and `dbt_core_version`, so a consumer
-can reproduce or diagnose a build. `data_mode` matters: the bundled `sample` is
-province grain, while `full` keeps canton detail.
+El manifest también registra `duckdb_version` y `dbt_core_version`, de modo que un consumidor
+pueda reproducir o diagnosticar un build. `data_mode` es importante: la `sample` incluida
+tiene grano provincial, mientras que `full` conserva el detalle de cantones.
 
-## Licensing and redistribution
+## Licencias y redistribución
 
-The artifact contains derived data, not code. `ATTRIBUTION.md` lists the
-publisher, source URL, license and modifications for SRI, INEC and BCE. SRI and
-BCE data are CC BY; INEC is CC BY 4.0. Only CC BY / CC BY 4.0 sources are
-included, so the artifact is redistributable with attribution. Non-commercial
-BCE datasets are intentionally excluded ([ADR 0004](adr/0004-sample-strategy-and-licensing.md)).
+El artefacto contiene datos derivados, no código. `ATTRIBUTION.md` enumera el editor, la URL
+de origen, la licencia y las modificaciones de SRI, INEC y BCE. Los datos del SRI y del BCE
+son CC BY; los del INEC son CC BY 4.0. Solo se incluyen fuentes CC BY / CC BY 4.0, así que el
+artefacto es redistribuible con atribución. Los conjuntos de datos no comerciales del BCE se
+excluyen deliberadamente ([ADR 0004](adr/0004-sample-strategy-and-licensing.md)).
