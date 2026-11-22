@@ -1,10 +1,10 @@
-# Contributing
+# Contribuir
 
-Thanks for your interest in improving the Ecuador open-data lakehouse.
+Gracias por el interés en mejorar el Ecuador Open-Data Lakehouse.
 
-## Development setup
+## Configuración del entorno de desarrollo
 
-Prerequisites: Python 3.12 and [uv](https://docs.astral.sh/uv/).
+Requisitos previos: Python 3.12 y [uv](https://docs.astral.sh/uv/).
 
 ```bash
 uv sync --locked
@@ -12,22 +12,22 @@ uv run lakehouse --version
 uv run python scripts/dev.py check
 ```
 
-`scripts/dev.py` is the cross-platform entry point for the quality gates:
+`scripts/dev.py` es el punto de entrada multiplataforma para las compuertas de calidad:
 
-| Task | What it runs |
+| Tarea | Qué ejecuta |
 | --- | --- |
 | `check` | `lint`, `format`, `arch`, `types`, `test` |
 | `lint` | `ruff check .` |
 | `format` | `ruff format --check .` |
-| `arch` | `import-linter` (hexagonal layer contracts) |
-| `types` | `mypy` (strict, `src/` only) |
-| `test` | `pytest` (browser tests are excluded unless marked `e2e`) |
-| `fix` | `ruff check --fix .` then `ruff format .` |
+| `arch` | `import-linter` (contratos de capas hexagonales) |
+| `types` | `mypy` (estricto, solo `src/`) |
+| `test` | `pytest` (las pruebas de navegador se excluyen salvo que estén marcadas como `e2e`) |
+| `fix` | `ruff check --fix .` y luego `ruff format .` |
 
-The first command to run after a change is the focused pytest file; the last is
-`uv run python scripts/dev.py check`. CI additionally runs `uv lock --check`,
-the test suite on Linux, Windows and macOS, the browser suite, an installer
-smoke test and the security jobs. Run locally before opening a pull request:
+El primer comando que conviene ejecutar después de un cambio es el archivo de pytest enfocado;
+el último es `uv run python scripts/dev.py check`. La CI ejecuta además `uv lock --check`, la
+suite de pruebas en Linux, Windows y macOS, la suite de navegador, una prueba de humo del
+instalador y los jobs de seguridad. Antes de abrir un pull request, ejecute localmente:
 
 ```bash
 uv lock --check
@@ -36,128 +36,126 @@ uv run pytest -m e2e
 uv build && uv run python scripts/smoke.py dist/*.whl
 ```
 
-## Tests
+## Pruebas
 
-- Write the failing test first, then the implementation. Observe RED before
-  GREEN.
-- Tests must be deterministic and offline; an autouse fixture blocks every
-  non-loopback socket connection. Use `tmp_path` for scratch state and never
-  write into the repository.
-- Use Hypothesis for data invariants (DAG ordering, text normalization,
-  parser encoding parity, partition load order, SCD2 integrity) and keep
-  `deadline=None` for dbt-backed properties.
-- Integration tests use real DuckDB and real dbt; do not mock the warehouse.
-- Browser tests live under `tests/e2e` behind the `e2e` marker. Install
-  Chromium once with `uv run playwright install chromium`.
-- Never weaken, skip or delete a test to make the suite green.
+- Escriba primero la prueba que falla y luego la implementación. Observe RED antes de GREEN.
+- Las pruebas deben ser deterministas y funcionar sin conexión; un fixture `autouse` bloquea
+  toda conexión de socket que no sea de loopback. Use `tmp_path` para el estado temporal y nunca
+  escriba dentro del repositorio.
+- Use Hypothesis para los invariantes de datos (orden del DAG, normalización de texto, paridad de
+  codificación de los parsers, orden de carga de particiones, integridad de SCD2) y mantenga
+  `deadline=None` para las propiedades que usan dbt.
+- Las pruebas de integración usan DuckDB y dbt reales; no simule el warehouse.
+- Las pruebas de navegador viven en `tests/e2e` detrás del marcador `e2e`. Instale Chromium una
+  sola vez con `uv run playwright install chromium`.
+- Nunca debilite, omita ni elimine una prueba para que la suite pase.
 
-## Architecture and documentation
+## Arquitectura y documentación
 
-The dependency rule is `cli -> container -> adapters -> application -> domain`.
-`domain/` imports only the standard library and itself; `application/` talks to
-adapters only through the protocols in `application/ports.py`. If you add a
-package, update the import-linter contracts in `pyproject.toml` and the
-architecture test in the same change.
+La regla de dependencias es `cli -> container -> adapters -> application -> domain`. `domain/`
+importa solo la biblioteca estándar y a sí mismo; `application/` se comunica con los adaptadores
+solo a través de los protocolos de `application/ports.py`. Si agrega un paquete, actualice en el
+mismo cambio los contratos de import-linter de `pyproject.toml` y la prueba de arquitectura.
 
-When you change behaviour, update the reader-facing docs in the same commit:
+Cuando cambie un comportamiento, actualice en el mismo commit la documentación orientada al lector:
 
-| Change | Document |
+| Cambio | Documento |
 | --- | --- |
-| Layer, port, pattern, pipeline or exit code | `docs/ARCHITECTURE.md` |
-| Source, format quirk, sample, measured fact or limitation | `docs/DATA.md` |
-| Artifact layout, manifest, verification or consumption | `docs/ARTIFACT.md` |
-| Published table, column, type or version rule | `docs/CONTRACT.md` and `artifact_contract.json` |
-| Environment variable, default or CLI override | `docs/CONFIGURATION.md` |
-| Significant decision with alternatives | New ADR in `docs/adr/` |
+| Capa, puerto, patrón, pipeline o código de salida | `docs/ARCHITECTURE.md` |
+| Fuente, particularidad de formato, muestra, hecho medido o limitación | `docs/DATA.md` |
+| Estructura del artefacto, manifest, verificación o consumo | `docs/ARTIFACT.md` |
+| Tabla, columna, tipo o regla de versión publicada | `docs/CONTRACT.md` y `artifact_contract.json` |
+| Variable de entorno, valor por defecto o sobrescritura por CLI | `docs/CONFIGURATION.md` |
+| Decisión significativa con alternativas | Nuevo ADR en `docs/adr/` |
 
-ADRs use the template: `Status`, `Context`, `Decision`, `Consequences` and
-`Alternatives considered`. Number them sequentially and keep the rejected
-options concrete (cost, dependency, operational reason). `uv run pytest
-tests/unit/test_docs.py` checks links, settings coverage, CLI coverage, ADR
-headings and Mermaid fences.
+Los ADR usan la plantilla: `Estado`, `Contexto`, `Decisión`, `Consecuencias` y
+`Alternativas consideradas`. Numérelos de forma secuencial y mantenga concretas las opciones
+rechazadas (costo, dependencia, motivo operativo). `uv run pytest tests/unit/test_docs.py`
+verifica enlaces, cobertura de settings, cobertura de la CLI, encabezados de ADR y bloques
+Mermaid.
 
-## Regenerating generated files
+## Regenerar archivos generados
 
-All generated files are committed, and every one has a reproducible command.
+Todos los archivos generados están versionados, y cada uno tiene un comando reproducible.
 
-**Lineage** (requires a built warehouse):
+**Linaje** (requiere un warehouse construido):
 
 ```bash
 uv run lakehouse docs --mermaid docs/LINEAGE.md
 git diff --exit-code docs/LINEAGE.md   # must be clean after regeneration
 ```
 
-**Bundled sample** (maintainer only; downloads about 960 MB once):
+**Muestra incluida** (solo mantenimiento; descarga unos 960 MB una vez):
 
 ```bash
 uv run lakehouse sample build --cache-dir "$LAKEHOUSE_HOME/cache"
 ```
 
-The command verifies every pinned SHA-256, writes
-`src/ecuador_lakehouse/sample_data/`, regenerates `SAMPLE_MANIFEST.json` and
-updates `dbt_project/seeds/control_totals.csv`. Commit the result as a separate
-`chore(data): ...` commit and include the observed row counts in the log.
-Never commit an upstream file or a cache directory.
+El comando verifica cada SHA-256 fijado, escribe `src/ecuador_lakehouse/sample_data/`, regenera
+`SAMPLE_MANIFEST.json` y actualiza `dbt_project/seeds/control_totals.csv`. Confirme el resultado
+en un commit aparte `chore(data): ...` e incluya en el mensaje los conteos de filas observados.
+Nunca confirme un archivo de origen ni un directorio de caché.
 
-**Media** (requires Chromium):
+**Medios** (requiere Chromium):
 
 ```bash
 uv run python scripts/capture_media.py
 ```
 
-The script builds a disposable sample lakehouse, captures eight 1440x900 PNGs
-in `docs/media/` and assembles `demo.gif` from the pages, asserting each frame
-is non-blank and the GIF stays within the size budget.
+El script construye una muestra desechable del lakehouse, captura ocho PNG de 1440x900 en
+`docs/media/` y arma `demo.gif` a partir de las páginas, verificando que cada cuadro no esté vacío
+y que el GIF respete el presupuesto de tamaño.
 
-**README metrics** (requires a sample build; no network):
+**Métricas del README** (requiere un build de muestra; sin red):
 
 ```bash
 uv run python scripts/gen_metrics.py
 ```
 
-The script builds and publishes a disposable sample lakehouse, reads the dbt
-manifest, the quality results and the artifact, then rewrites
-`docs/METRICS.json`. Paste the printed table into both `README.md` and
-`README.en.md` between the `metrics:start`/`metrics:end` markers. Verify with
-`uv run python scripts/gen_metrics.py --check`; never edit a metric by hand.
+El script construye y publica una muestra desechable del lakehouse, lee el manifest de dbt, los
+resultados de calidad y el artefacto, y después reescribe `docs/METRICS.json`. Pegue la tabla
+impresa tanto en `README.md` como en `README.en.md`, entre los marcadores
+`metrics:start`/`metrics:end`. Verifique con `uv run python scripts/gen_metrics.py --check`; nunca
+edite una métrica a mano.
 
-**Vendored ECharts**:
+**ECharts incluido**:
 
 ```bash
 uv run python scripts/vendor_echarts.py
 ```
 
-The script downloads the pinned ECharts 6.1.0 bundle, verifies its size and
-SHA-256 and writes the license and notice files. Do not vendor another version
-without updating the pinned checksum and the ADR.
+El script descarga el bundle fijado de ECharts 6.1.0, verifica su tamaño y su SHA-256, y escribe
+los archivos de licencia y de aviso. No incluya otra versión sin actualizar el checksum fijado y
+el ADR.
 
-## Commits and pull requests
+## Commits y pull requests
 
-- Use [Conventional Commits](https://www.conventionalcommits.org/) in English:
+- Use [Conventional Commits](https://www.conventionalcommits.org/) en inglés:
   `feat(cli): add serve command`, `fix(parsers): handle cp1252 SRI files`,
   `docs(architecture): document the artifact contract`.
-- Keep commits focused and reviewable (roughly 400 changed lines or fewer,
-  generated data excluded). Put generated sample bytes in their own commit.
-- Do not add AI attribution or `Co-Authored-By` trailers.
-- Every pull request must pass lint, type checks and the test matrix on Linux,
-  Windows and macOS before merging.
-- Update `CHANGELOG.md` under `Unreleased` for user-visible changes.
+- Mantenga los commits enfocados y revisables (unas 400 líneas cambiadas o menos, sin contar los
+  datos generados). Coloque los bytes de la muestra generada en su propio commit.
+- No agregue atribuciones de IA ni trailers `Co-Authored-By`.
+- Cada pull request debe pasar lint, las verificaciones de tipos y la matriz de pruebas en Linux,
+  Windows y macOS antes de fusionarse.
+- Actualice `CHANGELOG.md` bajo `Unreleased` para los cambios visibles para el usuario.
 
-## Releasing
+## Publicación de una versión
 
-1. Bump `version` in `pyproject.toml` and the fallback in
-   `src/ecuador_lakehouse/__init__.py`, then run `uv lock`. Re-run
-   `uv run lakehouse sample build` (with `--cache-dir` pointing at the verified
-   upstream cache to stay offline): `SAMPLE_MANIFEST.json` records the builder
-   version and a test pins it to the package version.
-2. Move the `Unreleased` entries of `CHANGELOG.md` under the new version and
-   update the release-wheel URL in both READMEs.
-3. Refresh the metrics snapshot (`uv run python scripts/gen_metrics.py`) and
-   commit.
-4. Push a `vX.Y.Z` tag. `release.yml` fails fast when the tag and the package
-   version differ, re-runs CI, builds the wheel, sdist and sample artifact zip,
-   writes `SHA256SUMS` and creates the GitHub release.
+1. Incremente `version` en `pyproject.toml` y el valor de respaldo en
+   `src/ecuador_lakehouse/__init__.py`, luego ejecute `uv lock`. Vuelva a ejecutar
+   `uv run lakehouse sample build` (con `--cache-dir` apuntando a la caché de origen verificada,
+   para mantenerse sin conexión): `SAMPLE_MANIFEST.json` registra la versión del constructor y una
+   prueba la fija a la versión del paquete.
+2. Mueva las entradas de `Unreleased` de `CHANGELOG.md` a la nueva versión y actualice la URL del
+   wheel del release en ambos README.
+3. Actualice la instantánea de métricas (`uv run python scripts/gen_metrics.py`) y confirme el
+   cambio.
+4. Haga push de una etiqueta `vX.Y.Z`. `release.yml` falla de inmediato si la etiqueta y la
+   versión del paquete no coinciden; de lo contrario, vuelve a ejecutar la CI, construye el wheel,
+   el sdist y el zip del artefacto de muestra, escribe `SHA256SUMS` y crea el release de GitHub.
 
-## Reporting security issues
+## Reportar problemas de seguridad
 
-Do not open a public issue for a vulnerability. Follow [SECURITY.md](SECURITY.md).
+No abra un issue público para una vulnerabilidad. Siga el procedimiento de
+[SECURITY.md](SECURITY.md).
