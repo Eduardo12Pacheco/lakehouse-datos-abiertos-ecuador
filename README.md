@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/assets/readme/hero.svg" width="100%" alt="Ecuador Open-Data Lakehouse: descarga datos abiertos del SRI, INEC y BCE, verifica sus checksums SHA-256, los modela con dbt y publica un artefacto versionado"></p>
+<p align="center"><img src="docs/assets/readme/hero.svg" width="100%" alt="Lakehouse de datos abiertos de Ecuador: descarga datos abiertos del SRI, INEC y BCE, verifica sus checksums SHA-256, los modela con dbt y publica un artefacto versionado"></p>
 
 <p align="center"><b>Español</b> · <a href="README.en.md">English</a></p>
 
