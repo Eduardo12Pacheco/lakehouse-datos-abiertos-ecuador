@@ -167,7 +167,7 @@ def test_macro_data_has_industries_and_ratio(report_site: ReportSite) -> None:
 
 def test_quality_data_reflects_real_run_results(report_site: ReportSite) -> None:
     data = _payload(report_site, "quality", "quality")
-    assert data["tests"]["total"] == 264
+    assert data["tests"]["total"] == 265
     assert data["tests"]["failed"] == 0
     layers = {row["layer"] for row in data["tests"]["layers"]}
     assert {"staging", "intermediate", "marts", "reconciliation", "unit"}.issubset(layers)
