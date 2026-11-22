@@ -25,8 +25,18 @@ def test_cli_version_flag_prints_version_and_exits_zero() -> None:
     assert result.stdout.strip() == project_version()
 
 
-def test_version_callback_is_a_noop_without_the_flag() -> None:
-    _print_version(False)
+def test_version_callback_is_a_noop_without_the_flag(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    loads: list[str] = []
+    monkeypatch.setattr(
+        "ecuador_lakehouse.cli.app._load_settings",
+        lambda: loads.append("loaded"),
+    )
+
+    assert _print_version(False) is None
+    assert capsys.readouterr().out == ""
+    assert loads == []
 
 
 def test_python_dash_m_prints_version(monkeypatch: pytest.MonkeyPatch) -> None:

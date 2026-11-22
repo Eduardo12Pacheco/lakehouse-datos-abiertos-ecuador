@@ -52,8 +52,15 @@ def test_valid_environment_still_prints_the_version(monkeypatch: pytest.MonkeyPa
     assert result.stdout.strip() == project_version()
 
 
-def test_main_callback_validates_settings() -> None:
-    main_callback(version=False)
+def test_main_callback_validates_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    validations: list[str] = []
+    monkeypatch.setattr(
+        "ecuador_lakehouse.cli.app._load_settings",
+        lambda: validations.append("validated"),
+    )
+
+    assert main_callback(version=False) is None
+    assert validations == ["validated"]
 
 
 def test_main_callback_exits_two_for_invalid_settings(monkeypatch: pytest.MonkeyPatch) -> None:
