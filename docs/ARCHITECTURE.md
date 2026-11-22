@@ -1,163 +1,163 @@
-# Architecture
+# Arquitectura
 
-The Ecuador open-data lakehouse is a local-first analytics-engineering system:
-one Python package installs a `lakehouse` CLI, one DuckDB file holds every
-layer, and dbt owns the transformation layer. There is no server, no cloud
-account and no mandatory network access: the default `sample` mode reads the
-bundled data from the wheel, while `full` mode downloads the pinned upstream
-files.
+El Ecuador Open-Data Lakehouse es un sistema de ingeniería analítica local-first: un
+único paquete de Python instala la CLI `lakehouse`, un archivo DuckDB contiene todas las
+capas y dbt es responsable de la capa de transformación. No hay servidor, cuenta en la
+nube ni acceso obligatorio a la red: el modo `sample` por defecto lee los datos incluidos
+en el wheel, mientras que el modo `full` descarga los archivos fijados de las fuentes
+originales.
 
-The design is hexagonal (ports and adapters). The pure domain is cheap to test,
-the application layer orchestrates use cases through protocols, adapters own the
-I/O, and a single composition root wires everything. Two independent mechanisms
-enforce the dependency direction: import-linter contracts and an AST test that
-scans every import under `domain/`.
+El diseño es hexagonal (puertos y adaptadores). El dominio puro es barato de probar, la
+capa de aplicación orquesta los casos de uso a través de protocolos, los adaptadores se
+encargan de la E/S y una única raíz de composición conecta todo. Dos mecanismos
+independientes hacen cumplir la dirección de las dependencias: los contratos de
+import-linter y una prueba AST que revisa cada import bajo `domain/`.
 
-## Layers
+## Capas
 
-The dependency rule is:
+La regla de dependencias es:
 
 ```mermaid
 flowchart TB
-  CLI[cli: Typer commands] --> C[container: composition root]
-  C --> AD[adapters: sources, parsers, warehouse,<br/>transform, artifact, report, docs]
-  AD --> APP[application: ports, pipeline, use cases]
-  APP --> DOM[domain: pure rules and value objects]
+  CLI[cli: comandos Typer] --> C[container: raíz de composición]
+  C --> AD[adaptadores: fuentes, parsers, warehouse,<br/>transformación, artefacto, reporte, docs]
+  AD --> APP[aplicación: puertos, pipeline, casos de uso]
+  APP --> DOM[dominio: reglas puras y objetos de valor]
   C --> CFG[config + logging_setup]
   CLI --> CFG
 ```
 
-Higher layers may import lower layers, never the other way around. `domain/`
-imports only the Python standard library and `ecuador_lakehouse.domain`.
-`application/` knows ports and domain value objects, may use the standard
-library for file orchestration, and may not import `adapters/`, `config`,
-`logging_setup`, `duckdb`, `dbt`, `httpx`, `jinja2`, `typer` or `rich`.
-Adapter subpackages are mutually independent: a parser cannot import the
-warehouse, the warehouse cannot import the report renderer.
+Las capas superiores pueden importar capas inferiores, nunca al revés. `domain/` solo
+importa la biblioteca estándar de Python y `ecuador_lakehouse.domain`. `application/`
+conoce los puertos y los objetos de valor del dominio, puede usar la biblioteca estándar
+para orquestar archivos y no puede importar `adapters/`, `config`, `logging_setup`,
+`duckdb`, `dbt`, `httpx`, `jinja2`, `typer` ni `rich`. Los subpaquetes de adaptadores son
+mutuamente independientes: un parser no puede importar el warehouse y el warehouse no
+puede importar el renderizador de reportes.
 
-| Package | Responsibility | Examples |
+| Paquete | Responsabilidad | Ejemplos |
 | --- | --- | --- |
-| `domain/` | Pure rules, canonical text keys, DAG validation, batch and manifest value objects, error taxonomy | `domain/text.py`, `domain/dag.py`, `domain/manifest.py` |
-| `application/` | Use cases and ports; pipeline orchestration; no concrete I/O | `application/ports.py`, `application/pipeline.py`, `application/use_cases/` |
-| `adapters/` | Concrete I/O behind the ports | HTTP fetch, parsers, DuckDB, dbt, artifact, report, lineage |
-| `cli/` | Typer commands, Rich presenters, exit-code guard | `cli/app.py`, `cli/commands/` |
-| `container.py` | Explicit dependency wiring and strategy selection | `build_container()` |
-| `config.py`, `logging_setup.py` | Cross-cutting settings and structlog configuration | `Settings`, `configure_logging()` |
+| `domain/` | Reglas puras, claves canónicas de texto, validación del DAG, objetos de valor de lotes y manifiestos, taxonomía de errores | `domain/text.py`, `domain/dag.py`, `domain/manifest.py` |
+| `application/` | Casos de uso y puertos; orquestación del pipeline; sin E/S concreta | `application/ports.py`, `application/pipeline.py`, `application/use_cases/` |
+| `adapters/` | E/S concreta detrás de los puertos | Descarga HTTP, parsers, DuckDB, dbt, artefacto, reporte, linaje |
+| `cli/` | Comandos Typer, presentadores Rich, guardia de códigos de salida | `cli/app.py`, `cli/commands/` |
+| `container.py` | Cableado explícito de dependencias y selección de estrategias | `build_container()` |
+| `config.py`, `logging_setup.py` | Configuración transversal y configuración de structlog | `Settings`, `configure_logging()` |
 
-Enforcement lives in `pyproject.toml` (`[[tool.importlinter.contracts]]`) and
-`tests/architecture/test_layers.py`. The AST test also plants a violating file
-in a temporary package so the guard cannot silently stop working.
+La aplicación de estas reglas está en `pyproject.toml` (`[[tool.importlinter.contracts]]`)
+y en `tests/architecture/test_layers.py`. La prueba AST también inserta un archivo que
+viola las reglas en un paquete temporal, para que la guardia no deje de funcionar en
+silencio.
 
-## Ports and adapters
+## Puertos y adaptadores
 
-| Port (`application/ports.py`) | Adapter | Responsibility |
+| Puerto (`application/ports.py`) | Adaptador | Responsabilidad |
 | --- | --- | --- |
-| `SourceFetcher` | `HttpSourceFetcher`, `SampleSourceFetcher` | Acquire a pinned file and verify its SHA-256; strategy selected by mode |
-| `LicenseCatalog` | `CkanCatalog` | Read CKAN license metadata |
-| `SourceParser` | `SriTaxParser`, `BceCntParser`, `InecCpiParser` | Decode, validate and emit canonical UTF-8 CSV |
-| `Warehouse` | `DuckDbWarehouse` | Raw-layer repository, batch ledger and one-transaction partition load |
-| `RunLedger` | `DuckDbWarehouse` | Persist `meta.runs` pipeline records |
-| `Transformer` | `DbtTransformer` | Seed, run and test dbt models in-process; parse and docs |
-| `LineageRenderer` | `LineageMermaidRenderer` | Render the dbt DAG as Markdown/Mermaid |
-| `ReportReader` | `DuckDbReportReader` | Read marts into a typed `ReportSnapshot` |
-| `ReportRenderer` | `JinjaReportRenderer` | Write the static multi-page site |
-| `ArtifactStore`, `ArtifactVerifier` | `DuckDbArtifactPublisher`, `DuckDbArtifactVerifier` | Publish and re-check the versioned data product |
+| `SourceFetcher` | `HttpSourceFetcher`, `SampleSourceFetcher` | Obtener un archivo fijado y verificar su SHA-256; la estrategia se selecciona según el modo |
+| `LicenseCatalog` | `CkanCatalog` | Leer los metadatos de licencia de CKAN |
+| `SourceParser` | `SriTaxParser`, `BceCntParser`, `InecCpiParser` | Decodificar, validar y emitir CSV canónico en UTF-8 |
+| `Warehouse` | `DuckDbWarehouse` | Repositorio de la capa raw, ledger de lotes y carga de partición en una sola transacción |
+| `RunLedger` | `DuckDbWarehouse` | Persistir los registros de ejecución del pipeline en `meta.runs` |
+| `Transformer` | `DbtTransformer` | Ejecutar seed, run y test de los modelos dbt en el mismo proceso; parse y docs |
+| `LineageRenderer` | `LineageMermaidRenderer` | Renderizar el DAG de dbt como Markdown/Mermaid |
+| `ReportReader` | `DuckDbReportReader` | Leer los marts en un `ReportSnapshot` tipado |
+| `ReportRenderer` | `JinjaReportRenderer` | Escribir el sitio estático de varias páginas |
+| `ArtifactStore`, `ArtifactVerifier` | `DuckDbArtifactPublisher`, `DuckDbArtifactVerifier` | Publicar y volver a verificar el producto de datos versionado |
 
-The CLI and the composition root are the only places that know concrete
-adapters. Swapping HTTP for the bundled sample changes one factory branch in
-`container.py`, not the use cases.
+La CLI y la raíz de composición son los únicos lugares que conocen los adaptadores
+concretos. Cambiar HTTP por la muestra incluida modifica una sola rama de fábrica en
+`container.py`, no los casos de uso.
 
-## Patterns in use
+## Patrones utilizados
 
-The following patterns are deliberate, not decorative:
+Los siguientes patrones son deliberados, no decorativos:
 
-- **Ports & Adapters** — every external concern has a `typing.Protocol` port;
-  adapters implement it and are chosen by the composition root.
-- **Strategy** — `SourceFetcher` (HTTP vs bundled sample), `SourceParser`
-  (SRI, BCE, INEC), decoding (UTF-8-sig then cp1252) and the pipeline step
-  registry.
-- **Factory / Composition root** — `container.build_container()` builds the
-  object graph, selects the mode-specific fetcher and assembles the DAG steps.
-- **Repository** — `meta.batches` is the append-only batch ledger behind
-  `Warehouse.ledger()`, and `meta.runs` is the pipeline run ledger.
-- **Unit of Work** — one partition load is a single DuckDB transaction: the
-  previous partition rows, the ledger update and the new rows commit together
-  or roll back together.
-- **Pipeline / DAG with Template Method** — `domain.dag.Dag` validates and
-  orders steps; `application.pipeline.PipelineRunner` supplies selection,
-  retries, stop-on-failure and run recording, while each step supplies only its
-  work through a common callable shape.
-- **Value Objects** — frozen dataclasses such as `SourceFile`, `BatchRecord`,
-  `QualitySummary`, `RunRecord` and `ArtifactManifest` validate at construction.
-- **Specification-style generic tests** — `assert_between`,
-  `assert_unique_combination`, `assert_scd2_integrity`,
-  `assert_row_count_at_least` and `assert_no_month_gaps` encode data invariants
-  reused across models.
+- **Ports & Adapters** — cada dependencia externa tiene un puerto `typing.Protocol`;
+  los adaptadores lo implementan y los elige la raíz de composición.
+- **Strategy** — `SourceFetcher` (HTTP frente a muestra incluida), `SourceParser`
+  (SRI, BCE, INEC), la decodificación (UTF-8-sig y luego cp1252) y el registro de pasos
+  del pipeline.
+- **Factory / Composition root** — `container.build_container()` construye el grafo de
+  objetos, selecciona el fetcher específico del modo y arma los pasos del DAG.
+- **Repository** — `meta.batches` es el ledger de lotes de solo adición detrás de
+  `Warehouse.ledger()`, y `meta.runs` es el ledger de ejecuciones del pipeline.
+- **Unit of Work** — la carga de una partición es una sola transacción de DuckDB: las
+  filas previas de la partición, la actualización del ledger y las filas nuevas se
+  confirman juntas o se revierten juntas.
+- **Pipeline / DAG con Template Method** — `domain.dag.Dag` valida y ordena los pasos;
+  `application.pipeline.PipelineRunner` aporta la selección, los reintentos, la detención
+  ante fallos y el registro de ejecuciones, mientras que cada paso aporta solo su trabajo
+  mediante una forma común de invocación.
+- **Value Objects** — dataclasses inmutables como `SourceFile`, `BatchRecord`,
+  `QualitySummary`, `RunRecord` y `ArtifactManifest` validan su contenido al construirse.
+- **Pruebas genéricas al estilo Specification** — `assert_between`,
+  `assert_unique_combination`, `assert_scd2_integrity`, `assert_row_count_at_least` y
+  `assert_no_month_gaps` codifican invariantes de datos reutilizados entre modelos.
 
-## End-to-end data flow
+## Flujo de datos de extremo a extremo
 
 ```mermaid
 flowchart LR
-  subgraph Sources
-    SRI[SRI yearly CSV<br/>10 files, CC BY]
-    INEC[INEC CPI ZIP<br/>CC BY 4.0]
-    BCE[BCE national accounts CSV<br/>CC BY]
-    CKAN[(CKAN metadata<br/>license evidence)]
+  subgraph Fuentes
+    SRI[CSV anuales del SRI<br/>10 archivos, CC BY]
+    INEC[ZIP del IPC del INEC<br/>CC BY 4.0]
+    BCE[CSV de cuentas nacionales del BCE<br/>CC BY]
+    CKAN[(metadatos CKAN<br/>evidencia de licencia)]
   end
-  subgraph EL[Python EL adapters]
-    F[Fetcher + checksum<br/>or bundled sample]
-    P[Parsers: decode, validate,<br/>unpivot and canonical CSV]
+  subgraph EL[Adaptadores EL en Python]
+    F[Descarga + checksum<br/>o muestra incluida]
+    P[Parsers: decodificar, validar,<br/>pasar a formato largo y CSV canónico]
     W[(DuckDB raw + meta.batches)]
   end
-  subgraph T[dbt transformation]
-    S[staging views]
-    I[intermediate views]
-    M[marts: dimensions, facts,<br/>SCD2 and analytics]
-    Q{{data tests + unit tests<br/>+ control totals}}
+  subgraph T[Transformación dbt]
+    S[vistas de staging]
+    I[vistas intermedias]
+    M[marts: dimensiones, hechos,<br/>SCD2 y analítica]
+    Q{{pruebas de datos + unitarias<br/>+ totales de control}}
   end
-  subgraph Out[Outputs]
-    A[(Artifact: DuckDB + Parquet<br/>+ manifest + contract)]
-    R[Static report + lineage docs]
+  subgraph Out[Salidas]
+    A[(Artefacto: DuckDB + Parquet<br/>+ manifest + contrato)]
+    R[Reporte estático + documentos de linaje]
   end
   SRI & INEC & BCE --> F
-  CKAN -.license metadata.-> F
+  CKAN -.metadatos de licencia.-> F
   F --> P --> W --> S --> I --> M --> Q
   Q --> A
   Q --> R
 ```
 
-Parsers preserve every source value as raw text in canonical CSV. dbt is the
-only place where typing, decimal parsing, month parsing, key normalization,
-surrogate keys and business models happen. This boundary is recorded in
-[ADR 0003](adr/0003-el-in-python-t-in-dbt.md).
+Los parsers conservan cada valor de origen como texto crudo en el CSV canónico. dbt es el
+único lugar donde ocurren el tipado, el parseo de decimales, el parseo de meses, la
+normalización de claves, las claves sustitutas y los modelos de negocio. Este límite está
+registrado en [ADR 0003](adr/0003-el-in-python-t-in-dbt.md).
 
-The raw layer keeps one table per source with all source columns as `VARCHAR`
-plus `_batch_id`, `_source_file` and `_source_sha256`. The batch ledger records
-the partition, source checksum, row count, status and whether the row is
-current, so re-loading an identical partition is a no-op and a changed
-partition is replaced inside a single transaction.
+La capa raw conserva una tabla por fuente, con todas las columnas de origen como
+`VARCHAR`, además de `_batch_id`, `_source_file` y `_source_sha256`. El ledger de lotes
+registra la partición, el checksum de la fuente, el número de filas, el estado y si la
+fila es la vigente; así, volver a cargar una partición idéntica no hace nada, y una
+partición modificada se reemplaza dentro de una sola transacción.
 
-## dbt layering
+## Capas de dbt
 
-The dbt project ships inside the wheel and is copied to the runtime home before
-each run ([ADR 0001](adr/0001-stack-duckdb-dbt.md)). Naming follows
-`stg_<source>__<entity>`, `int_*`, `dim_*`, `fct_*`, `mart_*`.
+El proyecto dbt viene dentro del wheel y se copia al directorio home de ejecución antes de
+cada ejecución ([ADR 0001](adr/0001-stack-duckdb-dbt.md)). Los nombres siguen el patrón
+`stg_<fuente>__<entidad>`, `int_*`, `dim_*`, `fct_*`, `mart_*`.
 
-| Layer | Materialization | Models |
+| Capa | Materialización | Modelos |
 | --- | --- | --- |
 | `staging` | view | `stg_sri__tax_collection`, `stg_bce__national_accounts`, `stg_inec__cpi_index` |
 | `intermediate` | view | `int_tax_item_year_presence`, `int_tax_item_versions`, `int_tax_collection_monthly`, `int_cpi_national_monthly`, `int_gdp_annual` |
-| `marts` | table / incremental | 7 dimensions, 3 facts and 4 analytic marts |
+| `marts` | table / incremental | 7 dimensiones, 3 hechos y 4 marts analíticos |
 
-Every model and every column has a non-empty description; every mart has an
-enforced contract. The committed [lineage document](LINEAGE.md) is generated
-from a fresh `dbt parse` and a test fails if it drifts.
+Cada modelo y cada columna tienen una descripción no vacía; cada mart tiene un contrato
+aplicado. El [documento de linaje](LINEAGE.md) versionado se genera a partir de un
+`dbt parse` nuevo, y una prueba falla si se desvía.
 
-## Data model
+## Modelo de datos
 
-The star schema has seven conformed dimensions, three facts and four analytic
-marts. Surrogate keys are `md5` hashes of the natural-key parts, never
-`row_number()`, so two builds agree.
+El esquema estrella tiene siete dimensiones conformadas, tres hechos y cuatro marts
+analíticos. Las claves sustitutas son hashes `md5` de las partes de la clave natural,
+nunca `row_number()`, de modo que dos builds coinciden.
 
 ```mermaid
 erDiagram
@@ -281,32 +281,31 @@ erDiagram
   dim_tax_item ||--o{ mart_tax_lifecycle : summarizes
 ```
 
-| Table | Grain | Kind |
+| Tabla | Grano | Tipo |
 | --- | --- | --- |
-| `dim_date` | month | dimension |
-| `dim_quarter` | quarter | dimension |
-| `dim_geography` | province x canton | dimension |
-| `dim_tax_item` | tax natural key x SCD2 version | dimension (SCD2) |
-| `dim_price_area` | INEC price area | dimension |
-| `dim_cpi_item` | CCIF item | dimension |
-| `dim_national_account_item` | BCE account item | dimension |
-| `fct_tax_collection` | month x tax item version x taxpayer type x geography | incremental fact |
-| `fct_cpi_index` | month x price area x CPI item | fact |
-| `fct_national_accounts` | quarter x account item x price basis | fact |
-| `mart_tax_collection_monthly` | month x tax group | analytic mart |
-| `mart_inflation_monthly` | month x price area x CPI item level | analytic mart |
-| `mart_tax_to_gdp_annual` | year | analytic mart |
-| `mart_tax_lifecycle` | tax natural key | analytic mart |
+| `dim_date` | mes | dimensión |
+| `dim_quarter` | trimestre | dimensión |
+| `dim_geography` | provincia x cantón | dimensión |
+| `dim_tax_item` | clave natural del impuesto x versión SCD2 | dimensión (SCD2) |
+| `dim_price_area` | área de precios del INEC | dimensión |
+| `dim_cpi_item` | ítem CCIF | dimensión |
+| `dim_national_account_item` | ítem de cuenta del BCE | dimensión |
+| `fct_tax_collection` | mes x versión del impuesto x tipo de contribuyente x geografía | hecho incremental |
+| `fct_cpi_index` | mes x área de precios x ítem del IPC | hecho |
+| `fct_national_accounts` | trimestre x ítem de cuenta x base de precios | hecho |
+| `mart_tax_collection_monthly` | mes x grupo de impuestos | mart analítico |
+| `mart_inflation_monthly` | mes x área de precios x nivel del ítem del IPC | mart analítico |
+| `mart_tax_to_gdp_annual` | año | mart analítico |
+| `mart_tax_lifecycle` | clave natural del impuesto | mart analítico |
 
-`dim_tax_item` is a deterministic SCD2 SQL model, not a dbt snapshot: version
-islands are derived from the presence matrix, validity comes from data rather
-than wall-clock time, and facts join the version valid in their collection year
-([ADR 0005](adr/0005-scd2-lifecycle-dimension.md)). `fct_tax_collection` is
-incremental with `delete+insert` on `period_year`, so loading a changed current
-year rewrites only that partition while older partitions keep their
-`_batch_id`.
+`dim_tax_item` es un modelo SQL determinista de SCD2, no un snapshot de dbt: las islas de
+versiones se derivan de la matriz de presencia, la vigencia proviene de los datos y no del
+reloj, y los hechos se unen con la versión vigente en su año de recaudación
+([ADR 0005](adr/0005-scd2-lifecycle-dimension.md)). `fct_tax_collection` es incremental con
+`delete+insert` sobre `period_year`, de modo que cargar un año vigente modificado reescribe
+solo esa partición, mientras que las particiones anteriores conservan su `_batch_id`.
 
-## Pipeline DAG
+## DAG del pipeline
 
 ```mermaid
 flowchart LR
@@ -315,99 +314,98 @@ flowchart LR
   quality --> publish
 ```
 
-`lakehouse build` runs the default selection `acquire, load_raw, transform,
-quality, docs, report`; adding `--publish` appends `publish`. The runner
-supports `--select STEP` (the step plus its upstream), `--only STEP` (exactly
-one step), `--from-step STEP` (the step and everything after it) and rejects
-mutually exclusive combinations with exit code 2. Only `acquire` is retried,
-because it is idempotent; every run, including a failed one, is written to
-`meta.runs` with per-step status, attempts, duration and metrics.
+`lakehouse build` ejecuta la selección por defecto `acquire, load_raw, transform, quality,
+docs, report`; agregar `--publish` añade `publish`. El runner admite `--select STEP` (el
+paso más sus dependencias previas), `--only STEP` (exactamente un paso) y `--from-step STEP`
+(el paso y todos los siguientes), y rechaza las combinaciones mutuamente excluyentes con
+código de salida 2. Solo se reintenta `acquire`, porque es idempotente; cada ejecución,
+incluida una fallida, se escribe en `meta.runs` con el estado por paso, los intentos, la
+duración y las métricas.
 
-The custom runner is a deliberate scope decision: Dagster and Airflow would add
-a service and a metadata database to an L1, single-process CLI
+El runner propio es una decisión de alcance deliberada: Dagster y Airflow añadirían un
+servicio y una base de metadatos a una CLI de un solo proceso de nivel L1
 ([ADR 0006](adr/0006-custom-dag-runner-vs-dagster.md)).
 
-## Failure model and exit codes
+## Modelo de fallos y códigos de salida
 
-Every expected failure is a `LakehouseError` subclass that declares its exit
-code. The CLI guard maps it to a clean message (no traceback unless `--debug`).
-Unexpected exceptions exit 1.
+Cada fallo esperado es una subclase de `LakehouseError` que declara su código de salida. La
+guardia de la CLI lo convierte en un mensaje limpio (sin traceback salvo con `--debug`). Las
+excepciones inesperadas terminan con código 1.
 
-| Exit code | Error | Meaning |
+| Código de salida | Error | Significado |
 | --- | --- | --- |
-| 0 | — | success |
-| 1 | unexpected | unhandled exception (traceback only with `--debug`) |
-| 2 | `ConfigError` | invalid configuration or command usage |
-| 3 | `ChecksumMismatchError` | a pinned immutable download did not match its SHA-256 |
-| 4 | `SourceSchemaError` / `UnsafeArchiveError` | upstream header drift or unsafe archive |
-| 5 | `SourceUnavailableError` | a source cannot be reached or read |
-| 6 | `TransformError` | dbt seed/run/parse/docs failure |
-| 7 | `QualityGateError` | at least one dbt data or unit test failed |
-| 8 | `ArtifactVerificationError` | artifact missing, corrupt or schema drift |
+| 0 | — | éxito |
+| 1 | inesperado | excepción no controlada (traceback solo con `--debug`) |
+| 2 | `ConfigError` | configuración inválida o uso incorrecto del comando |
+| 3 | `ChecksumMismatchError` | una descarga inmutable fijada no coincidió con su SHA-256 |
+| 4 | `SourceSchemaError` / `UnsafeArchiveError` | cambio de encabezados en la fuente o archivo inseguro |
+| 5 | `SourceUnavailableError` | una fuente no puede alcanzarse ni leerse |
+| 6 | `TransformError` | fallo de seed/run/parse/docs de dbt |
+| 7 | `QualityGateError` | al menos una prueba de datos o unitaria de dbt falló |
+| 8 | `ArtifactVerificationError` | artefacto ausente, corrupto o con cambio de esquema |
 
-The pipeline stops at the first failing step, so a quality-gate failure never
-reaches `docs`, `report` or `publish`.
+El pipeline se detiene en el primer paso que falla, así que un fallo de la compuerta de
+calidad nunca llega a `docs`, `report` ni `publish`.
 
-## Idempotency, incremental loads and determinism
+## Idempotencia, cargas incrementales y determinismo
 
-- **Acquisition** is idempotent: a cached file whose SHA-256 matches the pinned
-  checksum is reused. Mutable files (the current SRI year) record an accepted
-  vintage only with `--accept-new-vintage`; immutable mismatches fail with exit
-  code 3.
-- **Raw loading** is a Unit of Work: the warehouse compares the current ledger
-  checksum for a partition, skips identical bytes, or deletes and reloads the
-  partition in one transaction. A failure rolls back both data and ledger.
-- **Incremental facts** use `delete+insert` on `period_year` with
-  `on_schema_change: fail`, so contract drift stops the run instead of silently
-  evolving a published table.
-- **SCD2** is rebuilt from the presence matrix on every run, so the raw layer
-  remains the single source of truth and re-running a build is safe.
-- **Determinism** comes from data-only surrogate keys (`md5` of natural-key
-  parts), no wall-clock columns in marts, stable ordering and `gzip mtime=0`
-  for the bundled sample. Two fresh sample builds produce identical
-  `content_sha256` values for all 14 published tables
+- **La adquisición** es idempotente: un archivo en caché cuyo SHA-256 coincide con el
+  checksum fijado se reutiliza. Los archivos mutables (el año SRI en curso) registran una
+  versión aceptada solo con `--accept-new-vintage`; las discrepancias en archivos
+  inmutables fallan con código de salida 3.
+- **La carga raw** es una Unit of Work: el warehouse compara el checksum vigente del ledger
+  para una partición, omite los bytes idénticos o elimina y recarga la partición en una sola
+  transacción. Un fallo revierte tanto los datos como el ledger.
+- **Los hechos incrementales** usan `delete+insert` sobre `period_year` con
+  `on_schema_change: fail`, de modo que un cambio de contrato detiene la ejecución en lugar
+  de modificar en silencio una tabla publicada.
+- **SCD2** se reconstruye desde la matriz de presencia en cada ejecución, así que la capa raw
+  sigue siendo la única fuente de verdad y volver a ejecutar un build es seguro.
+- **El determinismo** proviene de claves sustitutas basadas solo en datos (`md5` de las
+  partes de la clave natural), la ausencia de columnas de reloj en los marts, un orden
+  estable y `gzip mtime=0` para la muestra incluida. Dos builds limpios de la muestra
+  producen valores `content_sha256` idénticos para las 14 tablas publicadas
   ([ADR 0007](adr/0007-artifact-contract-and-versioning.md)).
 
-## CLI surface
+## Superficie de la CLI
 
-| Command | Purpose |
+| Comando | Propósito |
 | --- | --- |
-| `lakehouse build` | Run the pipeline DAG; `--publish --out DIR` also publishes the artifact |
-| `lakehouse test` | Run only the `quality` step (dbt data and unit tests) |
-| `lakehouse fetch` | Download and verify pinned upstream files (`--source`, `--years`, `--accept-new-vintage`) |
-| `lakehouse sample build` | Maintainer command that regenerates the bundled sample |
-| `lakehouse docs` | Generate static dbt docs and Mermaid lineage (`--mermaid PATH`) |
-| `lakehouse publish` | Publish the current marts as a versioned artifact (`--out`) |
-| `lakehouse verify DIR` | Re-check a published artifact; exit 8 on tampering |
-| `lakehouse contract check` | Compare the committed contract with the warehouse schema |
-| `lakehouse serve` | Serve the generated report on loopback (`--host`, `--port`, `--open/--no-open`) |
-| `lakehouse doctor` | Check versions, home writability, sample integrity and optionally network reachability |
-| `lakehouse --version` | Print the package version |
+| `lakehouse build` | Ejecutar el DAG del pipeline; `--publish --out DIR` además publica el artefacto |
+| `lakehouse test` | Ejecutar solo el paso `quality` (pruebas de datos y unitarias de dbt) |
+| `lakehouse fetch` | Descargar y verificar los archivos fijados de las fuentes (`--source`, `--years`, `--accept-new-vintage`) |
+| `lakehouse sample build` | Comando de mantenimiento que regenera la muestra incluida |
+| `lakehouse docs` | Generar la documentación estática de dbt y el linaje en Mermaid (`--mermaid PATH`) |
+| `lakehouse publish` | Publicar los marts actuales como artefacto versionado (`--out`) |
+| `lakehouse verify DIR` | Volver a verificar un artefacto publicado; código 8 si hay manipulación |
+| `lakehouse contract check` | Comparar el contrato versionado con el esquema del warehouse |
+| `lakehouse serve` | Servir el reporte generado en loopback (`--host`, `--port`, `--open/--no-open`) |
+| `lakehouse doctor` | Revisar versiones, permisos de escritura del home, integridad de la muestra y, opcionalmente, el alcance de la red |
+| `lakehouse --version` | Imprimir la versión del paquete |
 
-## Configuration and observability
+## Configuración y observabilidad
 
-`config.Settings` is a `pydantic-settings` model with the `LAKEHOUSE_` prefix.
-Invalid values become `ConfigError` (exit 2) before any work starts. Logging is
-structlog with a `console` or `json` renderer, selected by
-`LAKEHOUSE_LOG_FORMAT`. The complete variable list, defaults and CLI overrides
-are in [CONFIGURATION.md](CONFIGURATION.md).
+`config.Settings` es un modelo de `pydantic-settings` con el prefijo `LAKEHOUSE_`. Los
+valores inválidos se convierten en `ConfigError` (código 2) antes de iniciar cualquier
+trabajo. El logging usa structlog con un renderizador `console` o `json`, seleccionado
+mediante `LAKEHOUSE_LOG_FORMAT`. La lista completa de variables, sus valores por defecto y
+las sobrescrituras por CLI están en [CONFIGURATION.md](CONFIGURATION.md).
 
-## Testing and quality gates
+## Pruebas y compuertas de calidad
 
-- `uv run python scripts/dev.py check` runs ruff lint, ruff format check, mypy
-  strict, import-linter and the pytest suite (browser tests excluded).
-- `uv run pytest -m e2e` runs the Playwright suite against a real generated
-  site.
-- dbt data tests, dbt unit tests and singular reconciliation tests run inside
-  `lakehouse build`/`lakehouse test`; a failing test closes the gate with exit
-  code 7.
-- Coverage is enforced at 85 % branch coverage on `src/`, and a Hypothesis
-  suite covers DAG ordering, text normalization, parser encoding parity, load
-  permutations and SCD2 integrity.
-- CI runs lint/types/architecture on Ubuntu and the test suite on Ubuntu,
-  Windows and macOS, plus a browser job, an installer smoke matrix and security
-  jobs.
+- `uv run python scripts/dev.py check` ejecuta ruff lint, la verificación de formato de
+  ruff, mypy estricto, import-linter y la suite de pytest (sin las pruebas de navegador).
+- `uv run pytest -m e2e` ejecuta la suite de Playwright contra un sitio real generado.
+- Las pruebas de datos de dbt, las pruebas unitarias de dbt y las pruebas singulares de
+  reconciliación se ejecutan dentro de `lakehouse build`/`lakehouse test`; una prueba fallida
+  cierra la compuerta con código de salida 7.
+- La cobertura se exige al 85 % de cobertura de ramas en `src/`, y una suite de Hypothesis
+  cubre el orden del DAG, la normalización de texto, la paridad de codificación de los
+  parsers, las permutaciones de carga y la integridad de SCD2.
+- La CI ejecuta lint, tipos y arquitectura en Ubuntu, y la suite de pruebas en Ubuntu,
+  Windows y macOS, además de un job de navegador, una matriz de smoke de instaladores y
+  jobs de seguridad.
 
-The published data product and its versioning rules are documented in
-[ARTIFACT.md](ARTIFACT.md) and [CONTRACT.md](CONTRACT.md); the source
-provenance, measured facts and limitations are in [DATA.md](DATA.md).
+El producto de datos publicado y sus reglas de versionado están documentados en
+[ARTIFACT.md](ARTIFACT.md) y [CONTRACT.md](CONTRACT.md); la procedencia de las fuentes, los
+hechos medidos y las limitaciones están en [DATA.md](DATA.md).
