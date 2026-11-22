@@ -118,7 +118,7 @@ uv run python scripts/gen_metrics.py
 The script builds and publishes a disposable sample lakehouse, reads the dbt
 manifest, the quality results and the artifact, then rewrites
 `docs/METRICS.json`. Paste the printed table into both `README.md` and
-`README.es.md` between the `metrics:start`/`metrics:end` markers. Verify with
+`README.en.md` between the `metrics:start`/`metrics:end` markers. Verify with
 `uv run python scripts/gen_metrics.py --check`; never edit a metric by hand.
 
 **Vendored ECharts**:

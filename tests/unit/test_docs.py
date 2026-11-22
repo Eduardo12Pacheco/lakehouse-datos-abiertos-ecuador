@@ -36,7 +36,7 @@ _EXTERNAL_SCHEME = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 
 def _markdown_files() -> list[Path]:
     files = sorted(DOCS.rglob("*.md"))
-    for name in ("README.md", "CONTRIBUTING.md", "SECURITY.md"):
+    for name in ("README.md", "README.en.md", "CONTRIBUTING.md", "SECURITY.md"):
         path = ROOT / name
         if path.is_file():
             files.insert(0, path)
@@ -217,6 +217,10 @@ def test_adrs_evaluate_the_rejected_alternatives() -> None:
 def test_docs_have_no_placeholder_markers() -> None:
     for path in _markdown_files():
         text = path.read_text(encoding="utf-8")
-        assert not re.search(r"\b(?:TODO|FIXME)\b|lorem", text, re.IGNORECASE), (
+        # Markers are uppercase: "todo" is an ordinary Spanish word.
+        assert not re.search(r"\b(?:TODO|FIXME)\b", text), (
             f"placeholder marker found in {path.relative_to(ROOT)}"
+        )
+        assert not re.search(r"lorem", text, re.IGNORECASE), (
+            f"placeholder text found in {path.relative_to(ROOT)}"
         )

@@ -1,6 +1,6 @@
 """Generate the honest README metrics (S23, T16).
 
-The metrics table in ``README.md`` and ``README.es.md`` is produced from a real
+The metrics table in ``README.md`` (Spanish) and ``README.en.md`` is produced from a real
 sample build, never typed by hand. This script:
 
 1. builds a disposable sample lakehouse with the bundled data (or reuses
@@ -40,7 +40,7 @@ from ecuador_lakehouse import __version__
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_METRICS = REPO_ROOT / "docs" / "METRICS.json"
 SAMPLE_DIR = REPO_ROOT / "src" / "ecuador_lakehouse" / "sample_data"
-READMES = (REPO_ROOT / "README.md", REPO_ROOT / "README.es.md")
+READMES = (REPO_ROOT / "README.md", REPO_ROOT / "README.en.md")
 METRICS_START = "<!-- metrics:start -->"
 METRICS_END = "<!-- metrics:end -->"
 

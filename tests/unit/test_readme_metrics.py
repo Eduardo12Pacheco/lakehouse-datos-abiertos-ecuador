@@ -3,8 +3,8 @@
 ``scripts/gen_metrics.py`` builds the bundled sample, reads the dbt manifest and
 the published artifact, and writes ``docs/METRICS.json``. These tests pin the
 contract between that generated snapshot and both README files: the table is
-present, every value matches the snapshot, the mirrors agree and the English
-README respects its 150-line budget.
+present, every value matches the snapshot, the mirrors agree and both READMEs
+(Spanish ``README.md`` and English ``README.en.md``) respect the 150-line budget.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from tests.unit.project_info import project_version
 ROOT = Path(__file__).resolve().parents[2]
 METRICS_PATH = ROOT / "docs" / "METRICS.json"
 SCRIPT = ROOT / "scripts" / "gen_metrics.py"
-READMES = (ROOT / "README.md", ROOT / "README.es.md")
+READMES = (ROOT / "README.md", ROOT / "README.en.md")
 METRICS_START = "<!-- metrics:start -->"
 METRICS_END = "<!-- metrics:end -->"
 README_MAX_LINES = 150
@@ -125,11 +125,12 @@ def test_generator_check_mode_accepts_the_committed_readmes() -> None:
 
 
 def test_readmes_share_one_table_and_respect_the_line_budget() -> None:
-    english, spanish = (path.read_text(encoding="utf-8") for path in READMES)
-    english_lines = len(english.splitlines())
+    spanish, english = (path.read_text(encoding="utf-8") for path in READMES)
     spanish_lines = len(spanish.splitlines())
-    assert english_lines <= README_MAX_LINES, f"README.md has {english_lines} lines"
+    english_lines = len(english.splitlines())
+    assert spanish_lines <= README_MAX_LINES, f"README.md has {spanish_lines} lines"
+    assert english_lines <= README_MAX_LINES, f"README.en.md has {english_lines} lines"
     assert abs(spanish_lines - english_lines) <= MIRROR_TOLERANCE * english_lines, (
-        f"README.es.md has {spanish_lines} lines, README.md has {english_lines}"
+        f"README.md has {spanish_lines} lines, README.en.md has {english_lines}"
     )
-    assert _table_rows(english, path=READMES[0]) == _table_rows(spanish, path=READMES[1])
+    assert _table_rows(spanish, path=READMES[0]) == _table_rows(english, path=READMES[1])

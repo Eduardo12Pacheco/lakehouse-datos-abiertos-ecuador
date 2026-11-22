@@ -1,61 +1,63 @@
 # Ecuador Open-Data Lakehouse
 
-A local-first analytics-engineering lakehouse over verified Ecuadorian open data:
-SRI tax collection, INEC consumer prices and BCE national accounts in DuckDB + dbt,
-with a star schema, SCD2 tax dimension, incremental facts, a published verifiable
-data product and an offline report.
+**Español** · [English](README.en.md)
+
+Un lakehouse de ingeniería analítica local-first sobre datos abiertos ecuatorianos
+verificados: recaudación de impuestos del SRI, precios al consumidor del INEC y cuentas
+nacionales del BCE en DuckDB + dbt, con esquema estrella, dimensión SCD2 de impuestos,
+hechos incrementales, un producto de datos publicado y verificable y un reporte offline.
 
 [![CI](https://github.com/Eduardo12Pacheco/lakehouse-datos-abiertos-ecuador/actions/workflows/ci.yml/badge.svg)](https://github.com/Eduardo12Pacheco/lakehouse-datos-abiertos-ecuador/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](pyproject.toml)
 [![uv](https://img.shields.io/badge/uv-managed-5c2d91.svg)](uv.lock)
 
-![The report UI walking through the overview, tax, prices and macro pages](docs/media/demo.gif)
+![El reporte recorriendo las páginas de resumen, impuestos, precios y macro](docs/media/demo.gif)
 
-| Light theme | Dark theme |
+| Tema claro | Tema oscuro |
 | --- | --- |
-| ![Overview page, light theme](docs/media/index-light.png) | ![Overview page, dark theme](docs/media/index-dark.png) |
+| ![Página de resumen, tema claro](docs/media/index-light.png) | ![Página de resumen, tema oscuro](docs/media/index-dark.png) |
 
-## What it does
+## Qué hace
 
-- **Acquires three real sources** with pinned URLs, SHA-256 checksums, license
-  evidence and a host allow-list. The bundled sample makes the default build
-  fully offline; `full` mode downloads the upstream files.
-- **Survives messy public files**: UTF-8 BOM and cp1252 SRI CSVs, `|` delimiters
-  and comma decimals, BCE semicolons and thousands separators, nested INEC zips
-  with Spanish month headers and mixed decimal formats.
-- **Models a conformed star schema** in dbt: 7 dimensions, 3 facts, 4 analytic
-  marts, a deterministic SCD2 tax-line dimension and partition-level incremental
-  fact loads.
-- **Proves quality**: dbt data and unit tests, reconciliation to control totals,
-  Hypothesis property tests, a quality gate that stops the pipeline at exit 7.
-- **Publishes a versioned artifact**: DuckDB + ZSTD Parquet + manifest +
-  `SHA256SUMS`, verified by `lakehouse verify` and guarded by a semver contract.
-- **Serves a finished static report** on loopback with light/dark themes,
-  keyboard navigation, empty/error states and vendored ECharts (no CDN).
+- **Adquiere tres fuentes reales** con URLs fijadas, checksums SHA-256, evidencia de
+  licencia y una lista blanca de hosts. La muestra incluida hace que el build por defecto
+  sea totalmente offline; el modo `full` descarga los archivos originales.
+- **Resiste archivos públicos desordenados**: CSV del SRI con BOM UTF-8 y cp1252,
+  delimitador `|` y decimales con coma; punto y coma y separadores de miles del
+  BCE; zips anidados del INEC con meses en español y formatos decimales mixtos.
+- **Modela un esquema estrella conformado** en dbt: 7 dimensiones, 3 hechos, 4 marts
+  analíticos, una dimensión SCD2 determinista de líneas de impuesto y cargas
+  incrementales de hechos por partición.
+- **Demuestra calidad**: tests de datos y unitarios de dbt, reconciliación contra totales
+  de control, property tests con Hypothesis y una compuerta de calidad que detiene el
+  pipeline con código de salida 7.
+- **Publica un artefacto versionado**: DuckDB + Parquet ZSTD + manifest + `SHA256SUMS`,
+  verificado por `lakehouse verify` y protegido por un contrato semver.
+- **Sirve un reporte estático completo** en loopback con temas claro/oscuro, navegación
+  por teclado, estados vacío/error y ECharts incluido (sin CDN).
 
-## Architecture
+## Arquitectura
 
 ```mermaid
 flowchart LR
-  S[SRI / INEC / BCE<br/>pinned + checksummed] --> P[Python EL<br/>decode + canonical CSV]
-  P --> W[(DuckDB raw + batch ledger)]
+  S[SRI / INEC / BCE<br/>fijados + checksum] --> P[EL en Python<br/>decodifica + CSV canónico]
+  P --> W[(DuckDB raw + ledger de lotes)]
   W --> D[dbt: staging → intermediate → marts]
-  D --> Q{{data + unit tests + control totals}}
-  Q --> A[(Published artifact<br/>DuckDB + Parquet + manifest)]
-  Q --> R[Static report + lineage docs]
+  D --> Q{{tests de datos + unitarios + totales de control}}
+  Q --> A[(Artefacto publicado<br/>DuckDB + Parquet + manifest)]
+  Q --> R[Reporte estático + linaje]
 ```
 
-Hexagonal ports and adapters keep the domain pure, Python owns extraction and
-dbt owns every transformation. The dependency direction is enforced by
-import-linter contracts and an AST test. See
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the layers, ports, patterns,
-ER diagram, pipeline DAG and exit codes.
+Los ports y adapters hexagonales mantienen puro el dominio, Python se encarga de la
+extracción y dbt de toda la transformación. La dirección de dependencias está forzada
+por contratos de import-linter y un test AST. Ver [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+para capas, puertos, patrones, diagrama ER, DAG del pipeline y códigos de salida.
 
-## Quickstart
+## Inicio rápido
 
-Requires [uv](https://docs.astral.sh/uv/) (Python 3.12 is installed by uv if
-needed). These three commands are identical in bash, zsh and Windows PowerShell:
+Requiere [uv](https://docs.astral.sh/uv/) (uv instala Python 3.12 si hace falta).
+Estos tres comandos son idénticos en bash, zsh y Windows PowerShell:
 
 ```bash
 uv tool install git+https://github.com/Eduardo12Pacheco/lakehouse-datos-abiertos-ecuador
@@ -63,23 +65,23 @@ lakehouse build
 lakehouse serve
 ```
 
-The report opens at `http://127.0.0.1:15080` (override with `--port` or
-`LAKEHOUSE_SERVE_PORT`). `lakehouse build` uses only the bundled sample and needs
-no network, keys or accounts.
+El reporte abre en `http://127.0.0.1:15080` (cambiar con `--port` o
+`LAKEHOUSE_SERVE_PORT`). `lakehouse build` usa solo la muestra incluida y no
+necesita red, claves ni cuentas.
 
-### Install from a release wheel
+### Instalar desde el wheel del release
 
-Every tagged release attaches the wheel and sdist:
+Cada release etiquetado adjunta el wheel y el sdist:
 
 ```bash
 uv tool install https://github.com/Eduardo12Pacheco/lakehouse-datos-abiertos-ecuador/releases/download/v0.1.1/ecuador_open_data_lakehouse-0.1.1-py3-none-any.whl
 ```
 
-## Results
+## Resultados
 
-A fresh `sample` build on the bundled data. Regenerate this table and the
-snapshot in [`docs/METRICS.json`](docs/METRICS.json) with
-`uv run python scripts/gen_metrics.py`; a test fails if the READMEs drift.
+Un build `sample` limpio sobre los datos incluidos. Regenerar esta tabla y la
+instantánea en [`docs/METRICS.json`](docs/METRICS.json) con
+`uv run python scripts/gen_metrics.py`; un test falla si los README se desvían.
 
 <!-- metrics:start -->
 | Metric | Value |
@@ -98,43 +100,43 @@ snapshot in [`docs/METRICS.json`](docs/METRICS.json) with
 | tables in the published artifact | 14 |
 <!-- metrics:end -->
 
-The published artifact keeps only `marts` and `meta.build_info`: 7 dimensions,
-3 facts and 4 analytic marts. Two fresh builds produce identical
-`content_sha256` values for every table.
+El artefacto publicado conserva solo `marts` y `meta.build_info`: 7 dimensiones,
+3 hechos y 4 marts analíticos. Dos builds limpios producen `content_sha256`
+idénticos para todas las tablas.
 
-## Data and license
+## Datos y licencia
 
-| Source | Coverage | License |
+| Fuente | Cobertura | Licencia |
 | --- | --- | --- |
-| SRI tax collection | 2017–2026, province grain in the sample | CC BY |
-| INEC consumer price index | Jan-2015–Dec-2024, base 2014 = 100 | CC BY 4.0 |
-| BCE national accounts | 2000Q1–2021Q1, 45 industries + GDP aggregates | CC BY |
+| Recaudación de impuestos del SRI | 2017–2026, grano provincial en la muestra | CC BY |
+| Índice de precios al consumidor del INEC | ene-2015–dic-2024, base 2014 = 100 | CC BY 4.0 |
+| Cuentas nacionales del BCE | 2000Q1–2021Q1, 45 industrias + agregados del PIB | CC BY |
 
-Code is MIT licensed. Data keeps its source license and is redistributed only
-where the license allows it; [`ATTRIBUTION.md`](src/ecuador_lakehouse/sample_data/ATTRIBUTION.md)
-records URLs, checksums and modifications. Full provenance and measured facts
-are in [docs/DATA.md](docs/DATA.md).
+El código es MIT. Los datos conservan la licencia de su fuente y solo se
+redistribuyen cuando la licencia lo permite; [`ATTRIBUTION.md`](src/ecuador_lakehouse/sample_data/ATTRIBUTION.md)
+registra URLs, checksums y modificaciones. La procedencia completa y los hechos
+medidos están en [docs/DATA.md](docs/DATA.md).
 
-## Limitations
+## Limitaciones
 
-- SRI collection covers **SRI-administered taxes only**; it is not total fiscal
-  pressure or the whole public budget.
-- The CPI vintage stops at **Dec-2024** (base 2014 = 100); the 2026 rebase is out
-  of scope.
-- BCE national accounts stop at **2021Q1**, so the SRI/GDP ratio is only complete
-  for 2017–2020 and partial later years are flagged `is_complete = false`.
-- The bundled sample is **province grain**; `full` mode keeps cantons. The SCD2
-  lifecycle is real, but no group/subgroup reclassification occurs in 2017–2026.
-- The SRI current-year file is mutable upstream; its checksum is accepted as a
-  new vintage only with an explicit flag.
+- La recaudación del SRI cubre **solo impuestos administrados por el SRI**; no es
+  presión fiscal total ni todo el presupuesto público.
+- La versión del IPC termina en **dic-2024** (base 2014 = 100); el rebase de 2026
+  queda fuera de alcance.
+- Las cuentas nacionales del BCE terminan en **2021Q1**, así que la relación SRI/PIB
+  solo es completa para 2017–2020 y los años parciales se marcan con `is_complete = false`.
+- La muestra incluida es de **grano provincial**; el modo `full` conserva cantones. El
+  ciclo de vida SCD2 es real, pero no hay reclasificación de grupo/subgrupo en 2017–2026.
+- El archivo del SRI del año en curso es mutable en la fuente; su checksum se acepta como
+  nueva versión solo con un flag explícito.
 
-## Documentation
+## Documentación
 
-- [Architecture](docs/ARCHITECTURE.md) · [Data](docs/DATA.md) · [Artifact](docs/ARTIFACT.md)
-- [Contract](docs/CONTRACT.md) · [Configuration](docs/CONFIGURATION.md) · [Lineage](docs/LINEAGE.md)
-- [ADRs](docs/adr/) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md)
+- [Arquitectura](docs/ARCHITECTURE.md) · [Datos](docs/DATA.md) · [Artefacto](docs/ARTIFACT.md)
+- [Contrato](docs/CONTRACT.md) · [Configuración](docs/CONFIGURATION.md) · [Linaje](docs/LINEAGE.md)
+- [ADRs](docs/adr/) · [Contribuir](CONTRIBUTING.md) · [Seguridad](SECURITY.md) · [Changelog](CHANGELOG.md)
 
-## Development
+## Desarrollo
 
 ```bash
 uv sync --locked
@@ -142,7 +144,7 @@ uv run python scripts/dev.py check
 uv run pytest -m e2e
 ```
 
-`scripts/dev.py check` runs ruff lint/format, mypy strict, import-linter and the
-pytest suite with the 85 % branch-coverage gate. Browser tests live behind
-`-m e2e`; `lakehouse doctor` checks versions, the home directory and the bundled
-sample integrity.
+`scripts/dev.py check` ejecuta ruff lint/format, mypy strict, import-linter y la suite de
+pytest con la compuerta de 85 % de cobertura de ramas. Los tests de navegador viven detrás
+de `-m e2e`; `lakehouse doctor` revisa versiones, el directorio home y la integridad de la
+muestra incluida.
