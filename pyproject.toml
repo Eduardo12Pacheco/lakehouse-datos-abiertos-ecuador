@@ -43,10 +43,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Eduardo12Pacheco/ecuador-open-data-lakehouse"
-Source = "https://github.com/Eduardo12Pacheco/ecuador-open-data-lakehouse"
-Issues = "https://github.com/Eduardo12Pacheco/ecuador-open-data-lakehouse/issues"
-Changelog = "https://github.com/Eduardo12Pacheco/ecuador-open-data-lakehouse/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/Eduardo12Pacheco/lakehouse-datos-abiertos-ecuador"
+Source = "https://github.com/Eduardo12Pacheco/lakehouse-datos-abiertos-ecuador"
+Issues = "https://github.com/Eduardo12Pacheco/lakehouse-datos-abiertos-ecuador/issues"
+Changelog = "https://github.com/Eduardo12Pacheco/lakehouse-datos-abiertos-ecuador/blob/main/CHANGELOG.md"
 
 [project.scripts]
 lakehouse = "ecuador_lakehouse.cli.app:main"

@@ -11,7 +11,7 @@ fix to the software may ship without changing the data contract.
 
 Please do not open a public issue for security problems. Use the repository's
 **Security** tab to open a private advisory
-(<https://github.com/Eduardo12Pacheco/ecuador-open-data-lakehouse/security/advisories/new>)
+(<https://github.com/Eduardo12Pacheco/lakehouse-datos-abiertos-ecuador/security/advisories/new>)
 and include:
 
 - the affected version and command,

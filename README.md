@@ -5,7 +5,7 @@ SRI tax collection, INEC consumer prices and BCE national accounts in DuckDB + d
 with a star schema, SCD2 tax dimension, incremental facts, a published verifiable
 data product and an offline report.
 
-[![CI](https://github.com/Eduardo12Pacheco/ecuador-open-data-lakehouse/actions/workflows/ci.yml/badge.svg)](https://github.com/Eduardo12Pacheco/ecuador-open-data-lakehouse/actions/workflows/ci.yml)
+[![CI](https://github.com/Eduardo12Pacheco/lakehouse-datos-abiertos-ecuador/actions/workflows/ci.yml/badge.svg)](https://github.com/Eduardo12Pacheco/lakehouse-datos-abiertos-ecuador/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](pyproject.toml)
 [![uv](https://img.shields.io/badge/uv-managed-5c2d91.svg)](uv.lock)
@@ -58,7 +58,7 @@ Requires [uv](https://docs.astral.sh/uv/) (Python 3.12 is installed by uv if
 needed). These three commands are identical in bash, zsh and Windows PowerShell:
 
 ```bash
-uv tool install git+https://github.com/Eduardo12Pacheco/ecuador-open-data-lakehouse
+uv tool install git+https://github.com/Eduardo12Pacheco/lakehouse-datos-abiertos-ecuador
 lakehouse build
 lakehouse serve
 ```
@@ -72,7 +72,7 @@ no network, keys or accounts.
 Every tagged release attaches the wheel and sdist:
 
 ```bash
-uv tool install https://github.com/Eduardo12Pacheco/ecuador-open-data-lakehouse/releases/download/v0.1.1/ecuador_open_data_lakehouse-0.1.1-py3-none-any.whl
+uv tool install https://github.com/Eduardo12Pacheco/lakehouse-datos-abiertos-ecuador/releases/download/v0.1.1/ecuador_open_data_lakehouse-0.1.1-py3-none-any.whl
 ```
 
 ## Results

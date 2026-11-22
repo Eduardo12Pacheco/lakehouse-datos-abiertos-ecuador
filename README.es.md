@@ -6,7 +6,7 @@ cuentas nacionales del BCE en DuckDB + dbt, con esquema estrella, dimensión SCD
 de impuestos, hechos incrementales, un producto de datos publicado y verificable
 y un reporte offline.
 
-[![CI](https://github.com/Eduardo12Pacheco/ecuador-open-data-lakehouse/actions/workflows/ci.yml/badge.svg)](https://github.com/Eduardo12Pacheco/ecuador-open-data-lakehouse/actions/workflows/ci.yml)
+[![CI](https://github.com/Eduardo12Pacheco/lakehouse-datos-abiertos-ecuador/actions/workflows/ci.yml/badge.svg)](https://github.com/Eduardo12Pacheco/lakehouse-datos-abiertos-ecuador/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](pyproject.toml)
 [![uv](https://img.shields.io/badge/uv-managed-5c2d91.svg)](uv.lock)
@@ -62,7 +62,7 @@ Requiere [uv](https://docs.astral.sh/uv/) (uv instala Python 3.12 si hace falta)
 Estos tres comandos son idénticos en bash, zsh y Windows PowerShell:
 
 ```bash
-uv tool install git+https://github.com/Eduardo12Pacheco/ecuador-open-data-lakehouse
+uv tool install git+https://github.com/Eduardo12Pacheco/lakehouse-datos-abiertos-ecuador
 lakehouse build
 lakehouse serve
 ```
@@ -76,7 +76,7 @@ necesita red, claves ni cuentas.
 Cada release etiquetado adjunta el wheel y el sdist:
 
 ```bash
-uv tool install https://github.com/Eduardo12Pacheco/ecuador-open-data-lakehouse/releases/download/v0.1.1/ecuador_open_data_lakehouse-0.1.1-py3-none-any.whl
+uv tool install https://github.com/Eduardo12Pacheco/lakehouse-datos-abiertos-ecuador/releases/download/v0.1.1/ecuador_open_data_lakehouse-0.1.1-py3-none-any.whl
 ```
 
 ## Resultados

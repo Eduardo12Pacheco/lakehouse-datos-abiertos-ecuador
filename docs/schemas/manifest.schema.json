@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/Eduardo12Pacheco/ecuador-open-data-lakehouse/docs/schemas/manifest.schema.json",
+  "$id": "https://github.com/Eduardo12Pacheco/lakehouse-datos-abiertos-ecuador/docs/schemas/manifest.schema.json",
   "title": "Ecuador lakehouse artifact manifest",
   "description": "Machine-readable description of one published lakehouse artifact (schema_version 1.0).",
   "type": "object",
