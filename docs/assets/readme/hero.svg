@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="400" viewBox="0 0 1200 400" role="img" aria-labelledby="title desc">
+  <title id="title">Ecuador Open-Data Lakehouse</title>
+  <desc id="desc">Lakehouse local que descarga datos abiertos del SRI, INEC y BCE, verifica sus checksums SHA-256, los modela con dbt y publica un artefacto versionado.</desc>
+
+  <!-- Palette: the dark tokens of the project's static report (tokens.css). Solid background so it reads on GitHub light and dark. -->
+  <rect width="1200" height="400" rx="28" fill="#0f141a"/>
+
+  <g id="title-block">
+    <rect x="72" y="64" width="56" height="56" rx="14" fill="#6cb6ff"/>
+    <text x="100" y="101" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif" font-size="24" font-weight="700" fill="#08111c">EL</text>
+    <text x="146" y="101" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" letter-spacing="2" fill="#6cb6ff">DATOS ABIERTOS · ECUADOR</text>
+    <text x="72" y="200" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif" font-size="58" font-weight="700" fill="#e6edf3">Ecuador Open-Data</text>
+    <text x="72" y="268" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif" font-size="58" font-weight="700" fill="#e6edf3">Lakehouse</text>
+    <text x="72" y="326" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif" font-size="22" fill="#a8b3c1">Descarga, verifica y modela datos del SRI, INEC y BCE</text>
+    <text x="72" y="358" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif" font-size="22" fill="#a8b3c1">en DuckDB + dbt, y publica un artefacto con checksums.</text>
+  </g>
+
+  <g id="process-proof" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif">
+    <rect x="744" y="56" width="400" height="304" rx="20" fill="#171e26" stroke="#33404d" stroke-width="1.5"/>
+    <text x="776" y="102" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18" letter-spacing="1.5" fill="#a8b3c1">DE LA FUENTE AL ARTEFACTO</text>
+    <line x1="790" y1="128" x2="790" y2="328" stroke="#33404d" stroke-width="2"/>
+    <circle cx="790" cy="128" r="9" fill="#171e26" stroke="#6cb6ff" stroke-width="2.5"/>
+    <text x="816" y="135" font-size="22" font-weight="600" fill="#e6edf3">Fuentes fijadas + SHA-256</text>
+    <circle cx="790" cy="178" r="9" fill="#171e26" stroke="#6cb6ff" stroke-width="2.5"/>
+    <text x="816" y="185" font-size="22" font-weight="600" fill="#e6edf3">Raw + ledger de lotes</text>
+    <circle cx="790" cy="228" r="9" fill="#171e26" stroke="#6cb6ff" stroke-width="2.5"/>
+    <text x="816" y="235" font-size="22" font-weight="600" fill="#e6edf3">dbt: staging → marts</text>
+    <circle cx="790" cy="278" r="9" fill="#171e26" stroke="#6cb6ff" stroke-width="2.5"/>
+    <text x="816" y="285" font-size="22" font-weight="600" fill="#e6edf3">Tests y control de calidad</text>
+    <circle cx="790" cy="328" r="9" fill="#ff9e64"/>
+    <text x="816" y="335" font-size="22" font-weight="600" fill="#e6edf3">Artefacto DuckDB + Parquet</text>
+  </g>
+</svg>
