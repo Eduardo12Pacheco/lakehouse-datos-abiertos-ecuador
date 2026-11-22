@@ -1,115 +1,112 @@
-# Security policy
+# Política de seguridad
 
-## Supported versions
+## Versiones soportadas
 
-The project is pre-1.0. Security fixes are applied to the latest release on
-`main`; older snapshots are not maintained. The published data artifact follows
-its own contract version (see [docs/CONTRACT.md](docs/CONTRACT.md)); a security
-fix to the software may ship without changing the data contract.
+El proyecto está en una versión previa a 1.0. Las correcciones de seguridad se aplican a la
+última versión publicada en `main`; las instantáneas antiguas no se mantienen. El artefacto de
+datos publicado sigue su propia versión de contrato (ver [docs/CONTRACT.md](docs/CONTRACT.md));
+una corrección de seguridad del software puede publicarse sin cambiar el contrato de datos.
 
-## Reporting a vulnerability
+## Reportar una vulnerabilidad
 
-Please do not open a public issue for security problems. Use the repository's
-**Security** tab to open a private advisory
+No abra un issue público para problemas de seguridad. Use la pestaña **Security** del repositorio
+para abrir un aviso privado
 (<https://github.com/Eduardo12Pacheco/lakehouse-datos-abiertos-ecuador/security/advisories/new>)
-and include:
+e incluya:
 
-- the affected version and command,
-- a minimal reproduction,
-- the impact you expect,
-- any known mitigation.
+- la versión y el comando afectados,
+- una reproducción mínima,
+- el impacto que espera,
+- cualquier mitigación conocida.
 
-You can expect an acknowledgement within a few days. Once a fix is available a
-new release is published and the advisory is disclosed with credit, if desired.
-Please give the project a reasonable window to release a fix before publishing
-details.
+Se espera un acuse de recibo en pocos días. Cuando haya una corrección disponible, se publica un
+nuevo release y el aviso se divulga, con crédito si se desea. Conceda al proyecto un plazo razonable
+para publicar una corrección antes de divulgar los detalles.
 
-## Scope
+## Alcance
 
-The tool is local-first and single-user. In scope:
+La herramienta es local-first y de un solo usuario. Están dentro del alcance:
 
-- the Python package, CLI and bundled sample,
-- the dbt project and the data-quality gate,
-- the static report site and `lakehouse serve`,
-- the published artifact format and `lakehouse verify`,
-- the CI and release workflows in this repository.
+- el paquete de Python, la CLI y la muestra incluida,
+- el proyecto dbt y la compuerta de calidad de datos,
+- el sitio de reporte estático y `lakehouse serve`,
+- el formato del artefacto publicado y `lakehouse verify`,
+- los workflows de CI y de release de este repositorio.
 
-Out of scope: vulnerabilities in DuckDB, dbt, httpx, Jinja2, ECharts or the
-host operating system (report them upstream, but tell us if this project's
-usage makes them exploitable), and attacks that require an already-compromised
-local account or physical access.
+Quedan fuera de alcance: las vulnerabilidades de DuckDB, dbt, httpx, Jinja2, ECharts o del sistema
+operativo anfitrión (repórtelas al proyecto upstream, pero infórmenos si el uso de este proyecto
+las vuelve explotables), y los ataques que requieren una cuenta local ya comprometida o acceso
+físico.
 
-## Design guarantees
+## Garantías de diseño
 
-### No credentials or accounts
+### Sin credenciales ni cuentas
 
-The tool runs locally and never requires credentials, API keys, tokens or
-accounts. There is no secret environment variable, no login flow and no paid
-API. Downloads use public, key-free source hosts only.
+La herramienta se ejecuta localmente y nunca requiere credenciales, claves de API, tokens ni
+cuentas. No existe variable de entorno secreta, flujo de inicio de sesión ni API de pago. Las
+descargas usan únicamente hosts de origen públicos y sin clave.
 
-### Verified, constrained downloads
+### Descargas verificadas y restringidas
 
-- Requests are restricted to an allow-list of public data hosts:
-  `descargas.sri.gob.ec`, `www.ecuadorencifras.gob.ec`,
-  `www.datosabiertos.gob.ec` and `datosabiertos.gob.ec`.
-- Redirects are validated against the same allow-list; a redirect outside it is
-  refused.
-- Every file is capped at 300 MiB and verified against a pinned SHA-256 from
-  `sources.lock.json` before it is used. An immutable mismatch raises
-  `ChecksumMismatchError` (exit 3).
-- The only mutable file is the current SRI year. A changed checksum emits a
-  warning and is recorded as a new vintage only with `--accept-new-vintage`.
-- Downloads can resume from a `.part` file, and a partial or mismatched file is
-  never loaded into the warehouse.
+- Las solicitudes se restringen a una lista de permitidos de hosts públicos de datos:
+  `descargas.sri.gob.ec`, `www.ecuadorencifras.gob.ec`, `www.datosabiertos.gob.ec` y
+  `datosabiertos.gob.ec`.
+- Las redirecciones se validan contra la misma lista de permitidos; una redirección fuera de ella
+  se rechaza.
+- Cada archivo tiene un límite de 300 MiB y se verifica contra un SHA-256 fijado en
+  `sources.lock.json` antes de usarse. Una discrepancia en un archivo inmutable genera
+  `ChecksumMismatchError` (código 3).
+- El único archivo mutable es el año SRI en curso. Un checksum modificado emite una advertencia y
+  se registra como nueva versión solo con `--accept-new-vintage`.
+- Las descargas pueden reanudarse desde un archivo `.part`, y un archivo parcial o con
+  discrepancias nunca se carga en el warehouse.
 
-### Archive handling
+### Manejo de archivos comprimidos
 
-The INEC source is a nested ZIP. Before any bytes are written, members are
-checked for:
+La fuente del INEC es un ZIP anidado. Antes de escribir cualquier byte, los miembros se verifican
+por:
 
-- path traversal (`..`), absolute paths, backslashes and symlinks;
-- a per-member uncompressed cap of 300 MiB and a total cap of 600 MiB;
-- a decompression ratio above 200x, which is rejected as a bomb.
+- recorrido de rutas (`..`), rutas absolutas, barras invertidas y enlaces simbólicos;
+- un límite de 300 MiB descomprimidos por miembro y de 600 MiB en total;
+- una razón de descompresión superior a 200x, que se rechaza como bomba de descompresión.
 
-Violations raise `UnsafeArchiveError`, a `SourceSchemaError` with exit code 4.
+Las infracciones generan `UnsafeArchiveError`, un `SourceSchemaError` con código de salida 4.
 
-### Local server
+### Servidor local
 
-`lakehouse serve` binds loopback only (default `127.0.0.1:15080`) and serves a
-generated static directory. It has no authentication and no TLS, and it refuses
-non-loopback bind addresses. Do not expose it through a public interface or a
-reverse proxy. Path traversal is rejected by the static handler.
+`lakehouse serve` se vincula solo a loopback (por defecto `127.0.0.1:15080`) y sirve un directorio
+estático generado. No tiene autenticación ni TLS, y rechaza direcciones de vinculación que no sean
+de loopback. No lo exponga mediante una interfaz pública ni un proxy inverso. El manejador estático
+rechaza el recorrido de rutas.
 
-### Artifact integrity
+### Integridad del artefacto
 
-Published artifacts are self-verifying. `lakehouse verify DIR` checks
-`SHA256SUMS`, parquet and DuckDB schemas and row counts, and the logical
-`content_sha256` of every table, and exits 8 on any mismatch. The DuckDB file
-contains only the public `marts` schema and a small `meta.build_info` table;
-raw, staging and intermediate schemas are not published. Consumers should verify
-an artifact once before using it.
+Los artefactos publicados se autoverifican. `lakehouse verify DIR` comprueba `SHA256SUMS`, los
+esquemas y conteos de filas de Parquet y DuckDB, y el `content_sha256` lógico de cada tabla, y
+termina con código 8 ante cualquier discrepancia. El archivo DuckDB contiene solo el esquema público
+`marts` y una pequeña tabla `meta.build_info`; los esquemas raw, staging e intermediate no se
+publican. Los consumidores deben verificar un artefacto una vez antes de usarlo.
 
-### Data licensing
+### Licencias de datos
 
-Only CC BY / CC BY 4.0 sources are bundled and published. Non-commercial BCE
-datasets are excluded on purpose, so the artifact remains redistributable with
-attribution. See [docs/DATA.md](docs/DATA.md) and
+Solo se incluyen y publican fuentes CC BY / CC BY 4.0. Los conjuntos de datos no comerciales del
+BCE se excluyen deliberadamente, de modo que el artefacto sigue siendo redistribuible con
+atribución. Vea [docs/DATA.md](docs/DATA.md) y
 [docs/adr/0004-sample-strategy-and-licensing.md](docs/adr/0004-sample-strategy-and-licensing.md).
 
-### Supply chain and CI
+### Cadena de suministro y CI
 
-- `gitleaks` scans the full git history in CI; no secrets are stored in the
-  repository or in fixtures.
-- `pip-audit` audits the locked dependency export in CI. A known finding must be
-  documented with a justification and a tracking note; it is never silently
-  ignored.
-- GitHub Actions are pinned by major version, use least-privilege `permissions`
-  blocks, and the release workflow requires the full CI workflow to pass before
-  it can create a release.
-- The released wheel and sdist are built in CI from a locked environment.
-- Dependabot monitors `github-actions` and `uv` weekly.
+- `gitleaks` escanea todo el historial de git en la CI; no se almacena ningún secreto en el
+  repositorio ni en los fixtures.
+- `pip-audit` audita la exportación bloqueada de dependencias en la CI. Un hallazgo conocido debe
+  documentarse con una justificación y una nota de seguimiento; nunca se ignora en silencio.
+- Las GitHub Actions están fijadas por versión mayor, usan bloques `permissions` de mínimo
+  privilegio, y el workflow de release exige que el workflow de CI completo pase antes de poder
+  crear un release.
+- El wheel y el sdist publicados se construyen en la CI a partir de un entorno bloqueado.
+- Dependabot supervisa `github-actions` y `uv` semanalmente.
 
-### Verification commands
+### Comandos de verificación
 
 ```bash
 uv run python scripts/dev.py check
@@ -119,5 +116,5 @@ uv export --no-hashes --no-emit-project > /tmp/requirements.txt
 uvx pip-audit --disable-pip --no-deps -r /tmp/requirements.txt
 ```
 
-If you believe any of these guarantees can be bypassed, report it privately
-using the channel above.
+Si cree que alguna de estas garantías puede eludirse, repórtelo en privado por el canal indicado
+arriba.
