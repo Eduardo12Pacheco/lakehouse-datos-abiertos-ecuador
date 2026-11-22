@@ -1,17 +1,16 @@
-# Artifact contract and versioning
+# Contrato del artefacto y versionado
 
-The published artifact is a public interface. `artifact_contract.json` records
-the tables, grains and typed columns that consumers are allowed to rely on, and
-`lakehouse contract check` compares that committed contract with the schema
-actually materialized in the warehouse.
+El artefacto publicado es una interfaz pública. `artifact_contract.json` registra las tablas,
+los granos y las columnas tipadas en las que los consumidores pueden confiar, y
+`lakehouse contract check` compara ese contrato versionado con el esquema que realmente
+materializa el warehouse.
 
-The current contract is version **1.0.0** and describes 14 tables: 7 dimensions,
-3 facts and 4 analytic marts. The artifact version equals the contract version.
+El contrato vigente es la versión **1.0.0** y describe 14 tablas: 7 dimensiones, 3 hechos y
+4 marts analíticos. La versión del artefacto iguala la versión del contrato.
 
-## File
+## Archivo
 
-`src/ecuador_lakehouse/artifact_contract.json` ships inside the wheel. Its shape
-is:
+`src/ecuador_lakehouse/artifact_contract.json` viene dentro del wheel. Su forma es:
 
 ```json
 {
@@ -32,37 +31,37 @@ is:
 }
 ```
 
-`kind` is one of `dim`, `fct` or `mart`. `grain` is a human-readable
-description of one row. `columns` is ordered and every type is the DuckDB type
-the model must produce.
+`kind` es uno de `dim`, `fct` o `mart`. `grain` es una descripción legible de una fila.
+`columns` está ordenado, y cada tipo es el tipo DuckDB que debe producir el modelo.
 
-Only the marts are contracted. Staging and intermediate models, the raw layer,
-the report site and the manifest schema are not part of this interface:
-consumers get the marts and the manifest.
+Solo los marts están sujetos a contrato. Los modelos de staging e intermediate, la capa raw,
+el sitio del reporte y el esquema del manifest no forman parte de esta interfaz: los
+consumidores reciben los marts y el manifest.
 
-## Semver rules
+## Reglas de semver
 
-The artifact version uses semantic versioning. The rules are about what a
-consumer can observe: tables, columns, types and the meaning of a value.
+La versión del artefacto usa versionado semántico. Las reglas se refieren a lo que un
+consumidor puede observar: tablas, columnas, tipos y el significado de un valor.
 
-| Change | Kind | Required bump |
+| Cambio | Tipo | Incremento requerido |
 | --- | --- | --- |
-| Remove a table | breaking | **MAJOR** |
-| Rename a table | breaking (old name disappears) | **MAJOR** |
-| Remove a column | breaking | **MAJOR** |
-| Rename a column | breaking (old name disappears) | **MAJOR** |
-| Change a column type (for example `INTEGER` to `BIGINT`) | breaking | **MAJOR** |
-| Change a table grain or the meaning/unit of a column | breaking by policy | **MAJOR** |
-| Add a table | additive | **MINOR** |
-| Add a column | additive | **MINOR** |
-| Add an allowed value or extend coverage without changing the schema | additive | **MINOR** |
-| Fix a bug, backfill wrong rows or improve descriptions with no schema change | fix | **PATCH** |
+| Eliminar una tabla | incompatible | **MAJOR** |
+| Renombrar una tabla | incompatible (el nombre anterior desaparece) | **MAJOR** |
+| Eliminar una columna | incompatible | **MAJOR** |
+| Renombrar una columna | incompatible (el nombre anterior desaparece) | **MAJOR** |
+| Cambiar el tipo de una columna (por ejemplo `INTEGER` a `BIGINT`) | incompatible | **MAJOR** |
+| Cambiar el grano de una tabla o el significado/unidad de una columna | incompatible por política | **MAJOR** |
+| Agregar una tabla | aditivo | **MINOR** |
+| Agregar una columna | aditivo | **MINOR** |
+| Agregar un valor permitido o ampliar la cobertura sin cambiar el esquema | aditivo | **MINOR** |
+| Corregir un error, rellenar filas erróneas o mejorar descripciones sin cambio de esquema | corrección | **PATCH** |
 
-A `MINOR` bump is safe for a consumer that selects named columns: existing
-columns stay present with the same names and types. A `MAJOR` bump requires the
-consumer to update its queries. A `PATCH` bump requires no change.
+Un incremento **MINOR** es seguro para un consumidor que selecciona columnas por nombre: las
+columnas existentes siguen presentes con los mismos nombres y tipos. Un incremento **MAJOR**
+obliga al consumidor a actualizar sus consultas. Un incremento **PATCH** no requiere ningún
+cambio.
 
-`contract check` performs the mechanical part of that table:
+`contract check` realiza la parte mecánica de esa tabla:
 
 ```text
 committed table missing in warehouse    -> BREAKING: table <name> removed
@@ -72,62 +71,61 @@ warehouse table absent from contract    -> ADDITIVE: table <name> added
 warehouse column absent from contract   -> ADDITIVE: <table>.<column> added
 ```
 
-When any breaking entry exists the required bump is MAJOR; otherwise any
-additive entry requires MINOR; otherwise no bump is required. The command exits
-8 whenever the diff is non-empty, because the committed contract no longer
-describes the warehouse. Update the contract (and bump it following the rules)
-until `contract check` is clean again.
+Cuando existe alguna entrada incompatible, el incremento requerido es MAJOR; si no, cualquier
+entrada aditiva requiere MINOR; si no, no se requiere incremento. El comando termina con
+código 8 siempre que el diff no esté vacío, porque el contrato versionado ya no describe el
+warehouse. Actualice el contrato (e increméntelo según las reglas) hasta que `contract check`
+vuelva a estar limpio.
 
-Grain and semantic changes are not machine-detectable from
-`information_schema`, so they remain a review responsibility. They still follow
-the MAJOR rule: a consumer that sums `collected_usd` per month must not silently
-receive a different unit or a different row meaning.
+Los cambios de grano y de semántica no son detectables mediante `information_schema`, así que
+siguen siendo responsabilidad de la revisión. Aun así, siguen la regla MAJOR: un consumidor que
+suma `collected_usd` por mes no debe recibir en silencio otra unidad ni otro significado de
+fila.
 
-## How to change the contract
+## Cómo cambiar el contrato
 
-1. Change the dbt model and its enforced contract, then rebuild and test with
+1. Cambie el modelo dbt y su contrato aplicado; luego, reconstruya y pruebe con
    `lakehouse build`.
-2. Run `lakehouse contract check`. Read the reported breaking and additive
-   entries. Decide the required level with the table above.
-3. Edit `src/ecuador_lakehouse/artifact_contract.json`: update
-   `contract_version` and the affected `tables`, `grain` or `columns` entries.
-   The artifact version is read from this file, so the published directory and
-   the manifest move together.
-4. Re-run `lakehouse build` and `lakehouse contract check`; it must report that
-   the committed version matches the warehouse tables.
-5. Publish and verify:
-   `lakehouse publish --out dist-artifact` and
+2. Ejecute `lakehouse contract check`. Lea las entradas incompatibles y aditivas que se
+   reporten. Determine el nivel requerido con la tabla anterior.
+3. Edite `src/ecuador_lakehouse/artifact_contract.json`: actualice `contract_version` y las
+   entradas afectadas de `tables`, `grain` o `columns`. La versión del artefacto se lee de este
+   archivo, así que el directorio publicado y el manifest avanzan juntos.
+4. Vuelva a ejecutar `lakehouse build` y `lakehouse contract check`; debe informar que la
+   versión versionada coincide con las tablas del warehouse.
+5. Publique y verifique:
+   `lakehouse publish --out dist-artifact` y
    `lakehouse verify dist-artifact/ecuador-lakehouse-<version>`.
-6. Record the reason and the bump in `CHANGELOG.md` and in the pull request.
-   A breaking change may also need a migration note for known consumers.
+6. Registre el motivo y el incremento en `CHANGELOG.md` y en el pull request. Un cambio
+   incompatible también puede requerir una nota de migración para los consumidores conocidos.
 
-The contract version is independent of the package version. A parser bug fix
-can ship package `0.1.1` while the data product stays `1.0.0`; adding a mart
-column can move the data product to `1.1.0` without a package release if the
-data are republished from the same code.
+La versión del contrato es independiente de la versión del paquete. Una corrección de un parser
+puede publicarse como el paquete `0.1.1` mientras el producto de datos sigue en `1.0.0`; agregar
+una columna a un mart puede llevar el producto de datos a `1.1.0` sin una publicación del
+paquete, si los datos se republican desde el mismo código.
 
-## Verification and compatibility
+## Verificación y compatibilidad
 
-Two different checks exist and are not interchangeable:
+Existen dos comprobaciones distintas que no son intercambiables:
 
-- `lakehouse contract check` compares the **committed contract** with the
-  **current warehouse schema**. It answers "is this build allowed to keep the
-  published interface?" and runs before publishing.
-- `lakehouse verify DIR` checks an **already published artifact** against its
-  own manifest, checksums and logical fingerprints. It answers "is this
-  directory intact?" and does not read the warehouse.
+- `lakehouse contract check` compara el **contrato versionado** con el **esquema actual del
+  warehouse**. Responde a la pregunta "¿este build puede mantener la interfaz publicada?" y se
+  ejecuta antes de publicar.
+- `lakehouse verify DIR` comprueba un **artefacto ya publicado** contra su propio manifest, sus
+  checksums y sus huellas digitales lógicas. Responde a la pregunta "¿este directorio está
+  íntegro?" y no lee el warehouse.
 
-A consumer should:
+Un consumidor debe:
 
-1. verify the artifact once with `lakehouse verify DIR`;
-2. read `manifest.json` and check `schema_version == "1.0"`;
-3. pin the artifact `MAJOR` version and the exact table/column names it uses;
-4. treat a new `MINOR` as backward compatible and a new `MAJOR` as a migration.
+1. verificar el artefacto una vez con `lakehouse verify DIR`;
+2. leer `manifest.json` y comprobar `schema_version == "1.0"`;
+3. fijar el incremento **MAJOR** del artefacto y los nombres exactos de tablas y columnas que
+   usa;
+4. tratar un nuevo **MINOR** como compatible hacia atrás y un nuevo **MAJOR** como una migración.
 
-The manifest schema itself is versioned by `schema_version`. A future change to
-the manifest field set is a separate contract: it would bump
-`schema_version`, and consumers must check it before assuming fields exist.
+El esquema del manifest se versiona mediante `schema_version`. Un cambio futuro en el conjunto
+de campos del manifest sería un contrato aparte: incrementaría `schema_version`, y los
+consumidores deben verificarlo antes de asumir que existen los campos.
 
-See [ARTIFACT.md](ARTIFACT.md) for the payload layout and the verification
-steps, and [ADR 0007](adr/0007-artifact-contract-and-versioning.md) for the
-decision record.
+Consulte [ARTIFACT.md](ARTIFACT.md) para la estructura del contenido y los pasos de verificación,
+y [ADR 0007](adr/0007-artifact-contract-and-versioning.md) para el registro de la decisión.
